@@ -5,9 +5,9 @@ sem digitar de novo. Re-executar é seguro: atualiza o que já existe (por CODIG
 sem duplicar. O preço de custo NUNCA vem do CSV (ele não tem essa coluna) — é
 preenchido à mão dentro do app e o import nunca apaga o que já foi preenchido.
 
-No PC, o botão "Atualizar do catálogo" lê direto do Q:\ (CATALOGO_PATH). Na nuvem
-não existe Q:\, então a tela oferece upload manual do arquivo — mesma função,
-só troca de onde o texto do CSV vem (`processar_conteudo`).
+No PC, o botão "Atualizar do catálogo" lê direto do drive de rede (CATALOGO_PATH).
+Na nuvem esse drive não existe, então a tela oferece upload manual do arquivo —
+mesma função, só troca de onde o texto do CSV vem (`processar_conteudo`).
 """
 import csv
 import io

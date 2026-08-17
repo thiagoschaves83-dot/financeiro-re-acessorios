@@ -26,11 +26,11 @@ Assim que você me mandar essa URL, eu preparo o envio do código daqui — essa
 Depois de logado no PythonAnywhere:
 
 1. Vá em **"Consoles"** → **"Bash"** (abre um terminal dentro do navegador)
-2. Cole o comando (eu troco a URL do GitHub pela que você me mandar):
+2. Cole este comando e aperte Enter:
    ```
-   git clone https://github.com/SEU-USUARIO/financeiro-re-acessorios.git
+   git clone https://github.com/thiagoschaves83-dot/financeiro-re-acessorios.git
    ```
-3. Ainda no console Bash, instale as dependências:
+3. Ainda no mesmo console Bash, cole estas duas linhas (uma de cada vez, Enter depois de cada uma):
    ```
    cd financeiro-re-acessorios
    pip install --user -r requirements.txt

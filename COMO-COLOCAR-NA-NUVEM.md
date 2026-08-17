@@ -69,5 +69,17 @@ Depois de logado no PythonAnywhere:
 ## Depois de tudo funcionando
 
 - Teste abrindo pelo celular com **Wi-Fi de casa desligado e o PC desligado** — esse é o teste que prova que funcionou de verdade
-- Clique de vez em quando em **"💾 Baixar backup"** dentro do app — na nuvem não tem o backup automático diário que criei aqui no PC (o Agendador de Tarefas do Windows não existe lá)
 - Combine com você mesmo: depois disso, o financeiro "de verdade" passa a ser o da nuvem — evita ter dois bancos de dados divergentes
+
+## Passo 7 — Backup automático na nuvem (opcional, mas recomendado)
+
+O PythonAnywhere grátis permite 1 tarefa agendada por dia. Isso substitui o clique manual em "💾 Baixar backup":
+
+1. Aba **Tarefas** → criar tarefa diária
+2. Horário em **UTC** (Brasília = UTC-3; pra rodar 23h no seu horário, agende 02:00)
+3. Comando:
+   ```
+   mkdir -p /home/reacessorios/financeiro-re-acessorios/backups && cp /home/reacessorios/financeiro-re-acessorios/dados.db /home/reacessorios/financeiro-re-acessorios/backups/dados_$(date +%Y%m%d_%H%M).db
+   ```
+
+Copia o banco todo dia pra `backups/`, com data/hora no nome, sem apagar cópia antiga — mesmo comportamento do `backup-diario.ps1` local.

@@ -1,0 +1,23 @@
+{% extends "base.html" %}
+{% block titulo %}Clientes atrasados — Financeiro{% endblock %}
+{% block conteudo %}
+<p><a href="{{ url_for('relatorios') }}">← Relatórios</a></p>
+<h2>Clientes atrasados</h2>
+<p style="color:#777; font-size:0.9rem;">Quem tem parcela com vencimento já passado, sem cobrir com o total pago até agora.</p>
+<p><a class="btn" href="{{ url_for('relatorio_clientes_atrasados_csv') }}">⬇️ Exportar CSV</a></p>
+
+<table>
+  <tr><th>Cliente</th><th>Telefone</th><th>Compras em atraso</th><th>Total atrasado</th><th></th></tr>
+  {% for d in dados %}
+  <tr>
+    <td>{{ d.nome }}</td>
+    <td>{{ d.telefone or "—" }}</td>
+    <td>{{ d.num_compras }}</td>
+    <td class="atraso">R$ {{ "%.2f"|format(d.atraso) }}</td>
+    <td><a href="{{ url_for('cliente_detalhe', cliente_id=d.id) }}">ver →</a></td>
+  </tr>
+  {% else %}
+  <tr><td colspan="5">Ninguém atrasado agora. 🎉</td></tr>
+  {% endfor %}
+</table>
+{% endblock %}

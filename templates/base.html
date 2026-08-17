@@ -1,0 +1,166 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>{% block titulo %}Rê Acessórios — Financeiro{% endblock %}</title>
+<link rel="manifest" href="{{ url_for('static', filename='manifest.json') }}">
+<link rel="icon" href="{{ url_for('static', filename='icone-192.png') }}">
+<link rel="apple-touch-icon" href="{{ url_for('static', filename='icone-192.png') }}">
+<meta name="theme-color" content="#C2293C">
+<style>
+  :root {
+    --rosa: #EBB3D6;
+    --carmim: #C2293C;
+    --carmim-escuro: #8D0E23;
+    --fundo: #FAF6F7;
+    --texto: #3A2A2E;
+    --branco: #FFFFFF;
+    --cinza: #E8E0E2;
+  }
+  * { box-sizing: border-box; }
+  body {
+    font-family: 'Segoe UI', system-ui, sans-serif;
+    margin: 0;
+    background: var(--fundo);
+    color: var(--texto);
+  }
+  .app { display: flex; min-height: 100vh; }
+  .lateral {
+    width: 220px;
+    background: var(--carmim-escuro);
+    color: var(--branco);
+    padding: 24px 0;
+    flex-shrink: 0;
+  }
+  .lateral h1 {
+    font-size: 1.1rem;
+    margin: 0 24px 24px;
+    color: var(--rosa);
+  }
+  .lateral a {
+    display: block;
+    padding: 10px 24px;
+    color: var(--branco);
+    text-decoration: none;
+    font-size: 0.95rem;
+  }
+  .lateral a:hover, .lateral a.ativo { background: var(--carmim); }
+  .conteudo { flex: 1; padding: 32px; max-width: 1000px; }
+  h2 { color: var(--carmim-escuro); }
+  a { color: var(--carmim); }
+  table { width: 100%; border-collapse: collapse; background: var(--branco); border-radius: 8px; overflow: hidden; }
+  th, td { text-align: left; padding: 10px 12px; border-bottom: 1px solid var(--cinza); font-size: 0.92rem; }
+  th { background: var(--rosa); color: var(--carmim-escuro); }
+  .card {
+    background: var(--branco);
+    border-radius: 10px;
+    padding: 20px;
+    margin-bottom: 20px;
+    box-shadow: 0 1px 4px rgba(0,0,0,0.06);
+  }
+  .grid-resumo { display: grid; grid-template-columns: repeat(auto-fit, minmax(180px, 1fr)); gap: 16px; }
+  .stat { background: var(--branco); border-radius: 10px; padding: 18px; text-align: center; box-shadow: 0 1px 4px rgba(0,0,0,0.06); }
+  .stat .valor { font-size: 1.6rem; font-weight: 700; color: var(--carmim-escuro); }
+  .stat .rotulo { font-size: 0.85rem; color: #777; margin-top: 4px; }
+  .btn {
+    display: inline-block;
+    background: var(--carmim);
+    color: var(--branco);
+    padding: 8px 16px;
+    border: none;
+    border-radius: 6px;
+    text-decoration: none;
+    font-size: 0.9rem;
+    cursor: pointer;
+  }
+  .btn:hover { background: var(--carmim-escuro); }
+  .btn-secundario { background: var(--cinza); color: var(--texto); }
+  .btn-zap { background: #25D366; }
+  form.inline { display: inline; }
+  input, select { padding: 7px 10px; border: 1px solid var(--cinza); border-radius: 6px; font-size: 0.9rem; }
+  label { display: block; font-size: 0.85rem; margin: 10px 0 4px; color: #666; }
+  .flash { padding: 10px 16px; border-radius: 6px; margin-bottom: 16px; font-size: 0.9rem; }
+  .flash.ok { background: #E3F5E8; color: #1F7A3E; }
+  .flash.erro { background: #FBE3E3; color: var(--carmim-escuro); }
+  .atraso { color: var(--carmim); font-weight: 600; }
+  .saldo-zero { color: #1F7A3E; }
+
+  /* Celular: a barra lateral fixa de 220px e os campos com largura fixa em pixel
+     cortavam conteúdo em tela pequena. Aqui vira barra de cima, rolável, e os
+     campos de formulário passam a ocupar a largura disponível. */
+  @media (max-width: 768px) {
+    .app { flex-direction: column; min-height: auto; }
+    .lateral {
+      width: 100%;
+      padding: 10px 0;
+      display: flex;
+      align-items: center;
+      overflow-x: auto;
+      white-space: nowrap;
+    }
+    .lateral h1 { font-size: 0.85rem; margin: 0 12px; white-space: nowrap; }
+    .lateral a { display: inline-block; padding: 8px 12px; font-size: 0.85rem; }
+    .conteudo { padding: 14px; max-width: 100%; }
+    table { display: block; overflow-x: auto; white-space: nowrap; }
+    input, select { max-width: 100%; }
+    .card input[type="text"], .card input[type="date"], .card input[type="number"] {
+      width: 100% !important;
+      box-sizing: border-box;
+    }
+    .card { padding: 14px; }
+  }
+</style>
+</head>
+<body>
+<div class="app">
+  <nav class="lateral">
+    <h1>Rê Acessórios<br><small style="color:var(--branco); font-weight:400;">Financeiro</small></h1>
+    <a href="{{ url_for('dashboard') }}">📊 Painel</a>
+    <a href="{{ url_for('clientes') }}">👥 Clientes</a>
+    <a href="{{ url_for('vendas') }}">🧾 Vendas</a>
+    <a href="{{ url_for('produtos') }}">🛍️ Produtos</a>
+    <a href="{{ url_for('relatorios') }}">📑 Relatórios</a>
+    <a href="{{ url_for('backup') }}">💾 Baixar backup</a>
+    <a href="{{ url_for('logout') }}" style="margin-top:16px; opacity:0.75;">🔒 Sair</a>
+  </nav>
+  <main class="conteudo">
+    {% with mensagens = get_flashed_messages(with_categories=true) %}
+      {% for categoria, msg in mensagens %}
+        <div class="flash {{ categoria }}">{{ msg }}</div>
+      {% endfor %}
+    {% endwith %}
+    {% block conteudo %}{% endblock %}
+  </main>
+</div>
+<script>
+// Gera uma caixinha de data por parcela — padrão 30 dias entre uma e outra,
+// mas cada uma continua editável na mão depois de gerada. Só regenera quando
+// o número de parcelas muda, pra não apagar data que o Thiago já ajustou.
+function gerarCaixinhasParcelas(idNumParcelas, idContainer) {
+  const numParcelas = parseInt(document.getElementById(idNumParcelas).value) || 0;
+  const container = document.getElementById(idContainer);
+  container.innerHTML = "";
+  if (numParcelas <= 0) return;
+  const hoje = new Date();
+  for (let i = 0; i < numParcelas; i++) {
+    const d = new Date(hoje);
+    d.setDate(d.getDate() + 30 * i);
+    const iso = d.toISOString().slice(0, 10);
+    const linha = document.createElement("div");
+    const label = document.createElement("label");
+    label.style.margin = "0 0 4px";
+    label.textContent = `Vencimento da parcela ${i + 1}`;
+    const input = document.createElement("input");
+    input.type = "date";
+    input.name = "data_parcela";
+    input.value = iso;
+    input.style.width = "160px";
+    linha.appendChild(label);
+    linha.appendChild(input);
+    container.appendChild(linha);
+  }
+}
+</script>
+</body>
+</html>

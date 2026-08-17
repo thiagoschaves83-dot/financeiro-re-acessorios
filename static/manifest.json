@@ -1,0 +1,12 @@
+{
+  "name": "Rê Acessórios — Financeiro",
+  "short_name": "Financeiro",
+  "start_url": "/",
+  "display": "standalone",
+  "background_color": "#FAF6F7",
+  "theme_color": "#C2293C",
+  "icons": [
+    { "src": "icone-192.png", "sizes": "192x192", "type": "image/png" },
+    { "src": "icone-512.png", "sizes": "512x512", "type": "image/png" }
+  ]
+}

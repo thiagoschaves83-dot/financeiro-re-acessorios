@@ -1,0 +1,91 @@
+{% extends "base.html" %}
+{% block titulo %}Vendas — Financeiro{% endblock %}
+{% block conteudo %}
+<h2>Vendas</h2>
+
+<div class="card">
+  <div style="display:flex; justify-content:space-between; align-items:center;">
+    <strong id="titulo-form-venda">Nova venda</strong>
+    <button type="button" class="btn" id="btn-toggle-venda" onclick="toggleFormVenda()">+ Nova venda</button>
+  </div>
+  <form method="post" action="{{ url_for('nova_venda') }}" id="form-nova-venda" style="display:none; margin-top:16px;">
+    <label>Nome do cliente</label>
+    <input type="text" name="cliente" id="campo-cliente" list="lista-clientes" required style="width:280px" placeholder="Digite o nome — se já existir, usamos o cadastro; se não, criamos um novo">
+    <datalist id="lista-clientes">
+      {% for nome in clientes_nomes %}
+      <option value="{{ nome }}">
+      {% endfor %}
+    </datalist>
+
+    <label>Telefone (só usado se for cliente novo)</label>
+    <input type="text" name="telefone" placeholder="32988887777" style="width:200px">
+
+    <label>Produto comprado</label>
+    <input type="text" id="campo-produto" list="lista-produtos" style="width:400px" placeholder="Busque por nome, código ou marca do catálogo, ou digite livre">
+    <datalist id="lista-produtos">
+      {% for p in produtos %}
+      <option value="{{ p.codigo }} — {{ p.nome }}{% if p.marca %} ({{ p.marca }}){% endif %}{% if p.numeracao %} — {{ p.numeracao }}{% endif %}" data-preco="{{ p.preco_venda or '' }}">
+      {% endfor %}
+    </datalist>
+    <input type="hidden" name="descricao" id="campo-descricao" required>
+
+    <label>Valor da venda (R$) — vem do produto selecionado, mas pode editar</label>
+    <input type="text" name="valor_total" id="campo-valor" required placeholder="300,00" style="width:120px">
+
+    <label>Condição de pagamento — número de parcelas (0 = à vista)</label>
+    <input type="number" id="num-parcelas-venda" value="0" min="0" style="width:80px"
+           oninput="gerarCaixinhasParcelas('num-parcelas-venda', 'caixinhas-parcelas-venda')">
+
+    <div id="caixinhas-parcelas-venda" style="display:flex; flex-direction:column; gap:10px; margin-top:6px;"></div>
+
+    <div style="margin-top:14px;">
+      <button class="btn" type="submit">+ Registrar venda</button>
+    </div>
+  </form>
+</div>
+
+<p style="color:#777; font-size:0.9rem;">Todas as compras registradas, de todos os clientes, mais recentes primeiro.</p>
+
+<table>
+  <tr><th>Data</th><th>Cliente</th><th>Descrição</th><th>Valor total</th><th>Pago</th><th>Saldo</th><th></th></tr>
+  {% for v in vendas %}
+  <tr>
+    <td>{{ v.data }}</td>
+    <td>{{ v.cliente_nome }}</td>
+    <td>{{ v.descricao }}</td>
+    <td>R$ {{ "%.2f"|format(v.valor_total) }}</td>
+    <td>R$ {{ "%.2f"|format(v.pago) }}</td>
+    <td class="{{ 'saldo-zero' if v.saldo <= 0 else 'atraso' }}">R$ {{ "%.2f"|format(v.saldo) }}</td>
+    <td><a href="{{ url_for('compra_detalhe', compra_id=v.id) }}">ver →</a></td>
+  </tr>
+  {% else %}
+  <tr><td colspan="7">Nenhuma venda registrada ainda.</td></tr>
+  {% endfor %}
+</table>
+
+<script>
+function toggleFormVenda() {
+  const form = document.getElementById('form-nova-venda');
+  const aberto = form.style.display !== 'none';
+  form.style.display = aberto ? 'none' : 'block';
+  document.getElementById('btn-toggle-venda').textContent = aberto ? '+ Nova venda' : '× Fechar';
+}
+
+// Produto selecionado no datalist preenche descrição (texto real) e sugere o valor —
+// mas o campo de valor continua editável na mão, como pedido.
+const campoProduto = document.getElementById('campo-produto');
+const listaProdutos = document.getElementById('lista-produtos');
+const campoDescricao = document.getElementById('campo-descricao');
+const campoValor = document.getElementById('campo-valor');
+
+function sincronizarProduto() {
+  const valorDigitado = campoProduto.value;
+  campoDescricao.value = valorDigitado;
+  const opcao = Array.from(listaProdutos.options).find(o => o.value === valorDigitado);
+  if (opcao && opcao.dataset.preco) {
+    campoValor.value = parseFloat(opcao.dataset.preco).toFixed(2).replace('.', ',');
+  }
+}
+campoProduto.addEventListener('input', sincronizarProduto);
+</script>
+{% endblock %}

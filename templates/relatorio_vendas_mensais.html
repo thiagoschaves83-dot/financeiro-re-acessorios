@@ -1,0 +1,21 @@
+{% extends "base.html" %}
+{% block titulo %}Vendas mensais — Financeiro{% endblock %}
+{% block conteudo %}
+<p><a href="{{ url_for('relatorios') }}">← Relatórios</a></p>
+<h2>Vendas mensais</h2>
+<p style="color:#777; font-size:0.9rem;">Soma do valor das compras registradas em cada mês — é venda, não é caixa (não olha se já foi pago).</p>
+<p><a class="btn" href="{{ url_for('relatorio_vendas_mensais_csv') }}">⬇️ Exportar CSV</a></p>
+
+<table>
+  <tr><th>Mês</th><th>Qtd. de compras</th><th>Total vendido</th></tr>
+  {% for d in dados %}
+  <tr>
+    <td>{{ d.mes }}</td>
+    <td>{{ d.qtd_compras }}</td>
+    <td>R$ {{ "%.2f"|format(d.total_vendido) }}</td>
+  </tr>
+  {% else %}
+  <tr><td colspan="3">Nenhuma venda registrada ainda.</td></tr>
+  {% endfor %}
+</table>
+{% endblock %}

@@ -1,0 +1,53 @@
+{% extends "base.html" %}
+{% block titulo %}Relatórios — Financeiro{% endblock %}
+{% block conteudo %}
+<h2>Relatórios</h2>
+
+<div class="card">
+  <strong>Clientes</strong> — lista de clientes com compras, pago e saldo.
+  <div style="margin-top:10px;">
+    <a class="btn btn-secundario" href="{{ url_for('clientes') }}">Ver na tela</a>
+    <a class="btn" href="{{ url_for('relatorio_clientes_csv') }}">⬇️ Exportar CSV</a>
+  </div>
+</div>
+
+<div class="card">
+  <strong>Produtos</strong> — catálogo com preço de venda, custo e margem.
+  <div style="margin-top:10px;">
+    <a class="btn btn-secundario" href="{{ url_for('produtos') }}">Ver na tela</a>
+    <a class="btn" href="{{ url_for('relatorio_produtos_csv') }}">⬇️ Exportar CSV</a>
+  </div>
+</div>
+
+<div class="card">
+  <strong>Vendas mensais</strong> — quanto foi vendido a cada mês (data da compra, não do pagamento).
+  <div style="margin-top:10px;">
+    <a class="btn btn-secundario" href="{{ url_for('relatorio_vendas_mensais') }}">Ver na tela</a>
+    <a class="btn" href="{{ url_for('relatorio_vendas_mensais_csv') }}">⬇️ Exportar CSV</a>
+  </div>
+</div>
+
+<div class="card">
+  <strong>Clientes atrasados</strong> — quem tem parcela vencida ainda não coberta pelo total pago.
+  <div style="margin-top:10px;">
+    <a class="btn btn-secundario" href="{{ url_for('relatorio_clientes_atrasados') }}">Ver na tela</a>
+    <a class="btn" href="{{ url_for('relatorio_clientes_atrasados_csv') }}">⬇️ Exportar CSV</a>
+  </div>
+</div>
+
+<div class="card">
+  <strong>Clientes com compras em aberto</strong> — todo mundo que ainda deve algo, atrasado ou não.
+  <div style="margin-top:10px;">
+    <a class="btn btn-secundario" href="{{ url_for('relatorio_clientes_em_aberto') }}">Ver na tela</a>
+    <a class="btn" href="{{ url_for('relatorio_clientes_em_aberto_csv') }}">⬇️ Exportar CSV</a>
+  </div>
+</div>
+
+<div class="card">
+  <strong>Clientes sem comprar (por período)</strong> — quem sumiu, pra puxar assunto de novo.
+  <div style="margin-top:10px;">
+    <a class="btn btn-secundario" href="{{ url_for('relatorio_sem_compra') }}">Ver na tela</a>
+    <a class="btn" href="{{ url_for('relatorio_sem_compra_csv') }}">⬇️ Exportar CSV</a>
+  </div>
+</div>
+{% endblock %}

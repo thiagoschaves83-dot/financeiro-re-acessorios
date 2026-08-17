@@ -1,0 +1,79 @@
+{% extends "base.html" %}
+{% block titulo %}{{ compra.descricao }} — Financeiro{% endblock %}
+{% block conteudo %}
+<p><a href="{{ url_for('cliente_detalhe', cliente_id=cliente.id) }}">← {{ cliente.nome }}</a></p>
+<h2>{{ compra.descricao }}</h2>
+
+<div class="card">
+  <p>
+    Valor total: <strong>R$ {{ "%.2f"|format(compra.valor_total) }}</strong>
+    &nbsp;·&nbsp; Pago: <strong>R$ {{ "%.2f"|format(pago) }}</strong>
+    &nbsp;·&nbsp; Saldo: <strong class="{{ 'saldo-zero' if saldo <= 0 else 'atraso' }}">R$ {{ "%.2f"|format(saldo) }}</strong>
+  </p>
+  <a class="btn btn-secundario" href="{{ url_for('editar_compra', compra_id=compra.id) }}">✏️ Editar valor da compra</a>
+  <p style="font-size:0.82rem; color:#888; margin-top:8px;">
+    Pode editar a qualquer momento, mesmo com pagamento já lançado — o saldo recalcula sozinho.
+  </p>
+</div>
+
+{% if parcelas %}
+<div class="card">
+  <h3 style="margin-top:0;">Parcelas previstas</h3>
+  <table>
+    <tr><th>Nº</th><th>Valor previsto</th><th>Vencimento</th></tr>
+    {% for p in parcelas %}
+    <tr><td>{{ p.numero }}</td><td>R$ {{ "%.2f"|format(p.valor_previsto) }}</td><td>{{ p.vencimento }}</td></tr>
+    {% endfor %}
+  </table>
+</div>
+{% endif %}
+
+<div class="card">
+  <h3 style="margin-top:0;">Registrar pagamento (baixa)</h3>
+  <form method="post" action="{{ url_for('novo_pagamento', compra_id=compra.id) }}">
+    <label>Valor pago (R$)</label>
+    <input type="text" name="valor" required placeholder="100,00" style="width:120px">
+    <label>Forma de pagamento</label>
+    <input type="text" name="forma_pagamento" placeholder="Pix, dinheiro, cartão..." style="width:200px">
+    <label>Data do pagamento (deixe em branco se foi hoje)</label>
+    <input type="date" name="data">
+    <div style="margin-top:14px;">
+      <button class="btn" type="submit">💰 Dar baixa</button>
+    </div>
+  </form>
+</div>
+
+<h3>Pagamentos</h3>
+<table>
+  <tr><th>Data</th><th>Valor</th><th>Forma</th><th></th></tr>
+  {% for p in pagamentos %}
+  <tr>
+    <td>{{ p.data }}</td>
+    <td>R$ {{ "%.2f"|format(p.valor) }}</td>
+    <td>{{ p.forma_pagamento or "—" }}</td>
+    <td>
+      <a href="{{ url_for('comprovante', compra_id=compra.id, pagamento_id=p.id) }}">comprovante</a>
+      &nbsp;·&nbsp;
+      <a href="{{ url_for('editar_pagamento', pagamento_id=p.id) }}">editar</a>
+      &nbsp;·&nbsp;
+      <form class="inline" method="post" action="{{ url_for('excluir_pagamento', pagamento_id=p.id) }}"
+            onsubmit="return confirm('Estornar este pagamento?');">
+        <button type="submit" style="background:none;border:none;color:var(--carmim);cursor:pointer;padding:0;font-size:inherit;">estornar</button>
+      </form>
+    </td>
+  </tr>
+  {% else %}
+  <tr><td colspan="4">Nenhum pagamento registrado ainda.</td></tr>
+  {% endfor %}
+</table>
+
+{% if historico %}
+<h3 style="margin-top:24px;">Histórico de edições</h3>
+<table>
+  <tr><th>Data</th><th>Campo</th><th>De</th><th>Para</th></tr>
+  {% for h in historico %}
+  <tr><td>{{ h.data }}</td><td>{{ h.campo }}</td><td>{{ h.valor_antigo }}</td><td>{{ h.valor_novo }}</td></tr>
+  {% endfor %}
+</table>
+{% endif %}
+{% endblock %}

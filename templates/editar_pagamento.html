@@ -1,0 +1,21 @@
+{% extends "base.html" %}
+{% block titulo %}Editar pagamento{% endblock %}
+{% block conteudo %}
+<p><a href="{{ url_for('compra_detalhe', compra_id=pagamento.compra_id) }}">← voltar</a></p>
+<h2>Editar pagamento</h2>
+<div class="card">
+  <form method="post">
+    <label>Valor (R$)</label>
+    <input type="text" name="valor" value="{{ "%.2f"|format(pagamento.valor) }}" required style="width:120px">
+    <label>Data do pagamento</label>
+    <input type="date" name="data" value="{{ pagamento.data }}" required>
+    <label>Forma de pagamento</label>
+    <input type="text" name="forma_pagamento" value="{{ pagamento.forma_pagamento or '' }}" style="width:200px">
+    <p style="font-size:0.85rem; color:#888;">
+      Útil quando a baixa foi lançada num dia mas o Pix/pagamento caiu em outro —
+      corrija a data aqui pra não contar atraso indevido. A mudança fica no histórico.
+    </p>
+    <button class="btn" type="submit">Salvar</button>
+  </form>
+</div>
+{% endblock %}

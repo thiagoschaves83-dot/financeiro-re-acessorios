@@ -1,0 +1,14 @@
+# Dado real e segredo - nunca vai pro repositorio
+dados.db
+backups/
+senha.hash
+secret.key
+
+# Ambiente Python
+.venv/
+venv/
+__pycache__/
+*.pyc
+
+# Arquivo local do Windows
+Thumbs.db

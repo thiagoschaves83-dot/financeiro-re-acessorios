@@ -1,0 +1,60 @@
+{% extends "base.html" %}
+{% block titulo %}Produtos — Financeiro{% endblock %}
+{% block conteudo %}
+<h2>Produtos</h2>
+<p style="color:#777; font-size:0.9rem;">
+  Sincronizado do <code>CATALOGO.csv</code> — o mesmo arquivo que o Cláudio usa pra montar o site.
+  Preço de custo não vem de lá (o catálogo só tem preço de venda); preencha aqui quando souber.
+</p>
+
+<div class="card" style="display:flex; justify-content:space-between; align-items:center; gap:16px; flex-wrap:wrap;">
+  <form method="get" style="display:flex; gap:8px;">
+    <input type="text" name="q" value="{{ busca }}" placeholder="Buscar por nome, código ou marca">
+    <button class="btn btn-secundario" type="submit">Buscar</button>
+  </form>
+  <form method="post" action="{{ url_for('importar_produtos') }}">
+    <button class="btn" type="submit">🔄 Atualizar do catálogo</button>
+  </form>
+  <a class="btn btn-secundario" href="{{ url_for('relatorio_produtos_csv') }}">⬇️ Exportar CSV</a>
+</div>
+
+<div class="card">
+  <strong>Rodando fora do PC?</strong>
+  <p style="color:#777; font-size:0.85rem; margin:4px 0 10px;">
+    O botão "Atualizar do catálogo" só funciona no computador da Rê (ele lê o arquivo direto do Q:\).
+    Se estiver acessando de outro lugar, baixe o <code>CATALOGO.csv</code> no PC e suba ele aqui.
+  </p>
+  <form method="post" action="{{ url_for('importar_produtos_upload') }}" enctype="multipart/form-data" style="display:flex; gap:10px; align-items:center; flex-wrap:wrap;">
+    <input type="file" name="arquivo" accept=".csv" required>
+    <button class="btn btn-secundario" type="submit">⬆️ Enviar CATALOGO.csv</button>
+  </form>
+</div>
+
+<table>
+  <tr><th>Código</th><th>Nome</th><th>Marca</th><th>Numeração</th><th>Preço venda</th><th>Custo</th><th>Margem</th></tr>
+  {% for p in produtos %}
+  <tr>
+    <td>{{ p.codigo }}</td>
+    <td>{{ p.nome }}</td>
+    <td>{{ p.marca }}</td>
+    <td>{{ p.numeracao }}</td>
+    <td>{{ "R$ %.2f"|format(p.preco_venda) if p.preco_venda else "—" }}</td>
+    <td>
+      <form class="inline" method="post" action="{{ url_for('definir_custo', codigo=p.codigo) }}">
+        <input type="text" name="preco_custo" value="{{ "%.2f"|format(p.preco_custo) if p.preco_custo else '' }}"
+               placeholder="custo" style="width:70px" onchange="this.form.submit()">
+      </form>
+    </td>
+    <td>
+      {% if p.preco_custo and p.preco_venda %}
+        R$ {{ "%.2f"|format(p.preco_venda - p.preco_custo) }}
+      {% else %}
+        —
+      {% endif %}
+    </td>
+  </tr>
+  {% else %}
+  <tr><td colspan="7">Nenhum produto ainda — clique em "Atualizar do catálogo" pra importar.</td></tr>
+  {% endfor %}
+</table>
+{% endblock %}

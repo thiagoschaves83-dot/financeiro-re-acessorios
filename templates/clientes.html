@@ -1,0 +1,32 @@
+{% extends "base.html" %}
+{% block titulo %}Clientes — Financeiro{% endblock %}
+{% block conteudo %}
+<h2>Clientes</h2>
+
+<div class="card">
+  <form method="post" action="{{ url_for('novo_cliente') }}">
+    <label>Nome</label>
+    <input type="text" name="nome" required style="width:260px">
+    <label>Telefone (com DDD)</label>
+    <input type="text" name="telefone" placeholder="32988887777" style="width:200px">
+    <div style="margin-top:14px;">
+      <button class="btn" type="submit">+ Cadastrar cliente</button>
+    </div>
+  </form>
+</div>
+
+<table>
+  <tr><th>Nome</th><th>Telefone</th><th>Compras</th><th>Saldo em aberto</th><th></th></tr>
+  {% for c in clientes %}
+  <tr>
+    <td>{{ c.nome }}</td>
+    <td>{{ c.telefone or "—" }}</td>
+    <td>{{ c.num_compras }}</td>
+    <td class="{{ 'saldo-zero' if c.saldo_total == 0 else 'atraso' }}">R$ {{ "%.2f"|format(c.saldo_total) }}</td>
+    <td><a href="{{ url_for('cliente_detalhe', cliente_id=c.id) }}">ver →</a></td>
+  </tr>
+  {% else %}
+  <tr><td colspan="5">Nenhum cliente cadastrado ainda.</td></tr>
+  {% endfor %}
+</table>
+{% endblock %}

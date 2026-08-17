@@ -1,0 +1,42 @@
+{% extends "base.html" %}
+{% block titulo %}{{ cliente.nome }} — Financeiro{% endblock %}
+{% block conteudo %}
+<p><a href="{{ url_for('clientes') }}">← Clientes</a></p>
+<h2>{{ cliente.nome }}</h2>
+<p>{{ cliente.telefone or "sem telefone cadastrado" }}</p>
+
+<div class="card">
+  <h3 style="margin-top:0;">Nova compra</h3>
+  <form method="post" action="{{ url_for('nova_compra', cliente_id=cliente.id) }}">
+    <label>Descrição (ex.: Tênis New Balance 550)</label>
+    <input type="text" name="descricao" required style="width:320px">
+    <label>Valor total (R$)</label>
+    <input type="text" name="valor_total" required placeholder="300,00" style="width:120px">
+    <label>Número de parcelas (0 = à vista / sem parcela fixa)</label>
+    <input type="number" id="num-parcelas-compra" value="0" min="0" style="width:80px"
+           oninput="gerarCaixinhasParcelas('num-parcelas-compra', 'caixinhas-parcelas-compra')">
+
+    <div id="caixinhas-parcelas-compra" style="display:flex; flex-direction:column; gap:10px; margin-top:6px;"></div>
+    <div style="margin-top:14px;">
+      <button class="btn" type="submit">+ Registrar compra</button>
+    </div>
+  </form>
+</div>
+
+<h3>Compras</h3>
+<table>
+  <tr><th>Data</th><th>Descrição</th><th>Valor total</th><th>Pago</th><th>Saldo</th><th></th></tr>
+  {% for c in compras %}
+  <tr>
+    <td>{{ c.data }}</td>
+    <td>{{ c.descricao }}</td>
+    <td>R$ {{ "%.2f"|format(c.valor_total) }}</td>
+    <td>R$ {{ "%.2f"|format(c.pago) }}</td>
+    <td class="{{ 'saldo-zero' if c.saldo <= 0 else 'atraso' }}">R$ {{ "%.2f"|format(c.saldo) }}</td>
+    <td><a href="{{ url_for('compra_detalhe', compra_id=c.id) }}">ver →</a></td>
+  </tr>
+  {% else %}
+  <tr><td colspan="6">Nenhuma compra registrada ainda.</td></tr>
+  {% endfor %}
+</table>
+{% endblock %}

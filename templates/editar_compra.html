@@ -1,0 +1,17 @@
+{% extends "base.html" %}
+{% block titulo %}Editar compra{% endblock %}
+{% block conteudo %}
+<p><a href="{{ url_for('compra_detalhe', compra_id=compra.id) }}">← voltar</a></p>
+<h2>Editar valor — {{ compra.descricao }}</h2>
+<div class="card">
+  <form method="post">
+    <label>Novo valor total (R$)</label>
+    <input type="text" name="valor_total" value="{{ "%.2f"|format(compra.valor_total) }}" required style="width:150px">
+    <p style="font-size:0.85rem; color:#888;">
+      O saldo (o que ainda falta receber) recalcula sozinho a partir dos pagamentos já registrados.
+      Essa mudança fica registrada no histórico da compra.
+    </p>
+    <button class="btn" type="submit">Salvar</button>
+  </form>
+</div>
+{% endblock %}

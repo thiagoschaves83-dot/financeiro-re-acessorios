@@ -1,0 +1,27 @@
+{% extends "base.html" %}
+{% block titulo %}Clientes sem comprar — Financeiro{% endblock %}
+{% block conteudo %}
+<p><a href="{{ url_for('relatorios') }}">← Relatórios</a></p>
+<h2>Clientes sem comprar</h2>
+<p style="color:#777; font-size:0.9rem;">Inclui quem nunca comprou nada ainda. Bom pra puxar assunto de novo.</p>
+
+<div class="card" style="display:flex; gap:8px; align-items:center; flex-wrap:wrap;">
+  {% for opcao in [30, 60, 90, 180] %}
+    <a class="btn {{ 'btn-secundario' if opcao != dias }}" href="{{ url_for('relatorio_sem_compra', dias=opcao) }}">{{ opcao }} dias</a>
+  {% endfor %}
+  <a class="btn" style="margin-left:auto;" href="{{ url_for('relatorio_sem_compra_csv', dias=dias) }}">⬇️ Exportar CSV</a>
+</div>
+
+<table>
+  <tr><th>Cliente</th><th>Telefone</th><th>Última compra</th></tr>
+  {% for d in dados %}
+  <tr>
+    <td>{{ d.nome }}</td>
+    <td>{{ d.telefone or "—" }}</td>
+    <td>{{ d.ultima_compra or "nunca comprou" }}</td>
+  </tr>
+  {% else %}
+  <tr><td colspan="3">Todo mundo comprou nos últimos {{ dias }} dias.</td></tr>
+  {% endfor %}
+</table>
+{% endblock %}

@@ -1,0 +1,418 @@
+"""Banco de dados do app financeiro da Rê Acessórios — SQLite em arquivo único."""
+import sqlite3
+from pathlib import Path
+from datetime import date
+
+DB_PATH = Path(__file__).parent / "dados.db"
+
+SCHEMA = """
+CREATE TABLE IF NOT EXISTS clientes (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    nome TEXT NOT NULL,
+    telefone TEXT,
+    criado_em TEXT NOT NULL
+);
+
+CREATE TABLE IF NOT EXISTS compras (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    cliente_id INTEGER NOT NULL REFERENCES clientes(id),
+    descricao TEXT NOT NULL,
+    valor_total REAL NOT NULL,
+    data TEXT NOT NULL
+);
+
+CREATE TABLE IF NOT EXISTS parcelas (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    compra_id INTEGER NOT NULL REFERENCES compras(id),
+    numero INTEGER NOT NULL,
+    valor_previsto REAL NOT NULL,
+    vencimento TEXT NOT NULL
+);
+
+CREATE TABLE IF NOT EXISTS pagamentos (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    compra_id INTEGER NOT NULL REFERENCES compras(id),
+    parcela_id INTEGER REFERENCES parcelas(id),
+    valor REAL NOT NULL,
+    data TEXT NOT NULL,
+    forma_pagamento TEXT
+);
+
+CREATE TABLE IF NOT EXISTS historico_edicoes (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    compra_id INTEGER NOT NULL REFERENCES compras(id),
+    campo TEXT NOT NULL,
+    valor_antigo TEXT,
+    valor_novo TEXT,
+    data TEXT NOT NULL
+);
+
+CREATE TABLE IF NOT EXISTS produtos (
+    codigo TEXT PRIMARY KEY,
+    id_origem TEXT,
+    nome TEXT NOT NULL,
+    marca TEXT,
+    tipo TEXT,
+    genero TEXT,
+    categoria TEXT,
+    numeracao TEXT,
+    preco_venda REAL,
+    preco_custo REAL,
+    linha TEXT,
+    status_catalogo TEXT,
+    atualizado_em TEXT NOT NULL
+);
+"""
+
+
+def get_conn():
+    conn = sqlite3.connect(DB_PATH)
+    conn.row_factory = sqlite3.Row
+    conn.execute("PRAGMA foreign_keys = ON")
+    return conn
+
+
+def init_db():
+    conn = get_conn()
+    conn.executescript(SCHEMA)
+    conn.commit()
+    conn.close()
+
+
+def hoje():
+    return date.today().isoformat()
+
+
+# ---------- Clientes ----------
+
+def listar_clientes(conn):
+    return conn.execute("SELECT * FROM clientes ORDER BY nome").fetchall()
+
+
+def buscar_cliente(conn, cliente_id):
+    return conn.execute("SELECT * FROM clientes WHERE id = ?", (cliente_id,)).fetchone()
+
+
+def buscar_cliente_por_nome(conn, nome):
+    """Match exato (ignorando maiúsculas/espaço nas pontas) — usado pra decidir
+    se a 'Nova venda' reaproveita um cliente já cadastrado ou cria um novo."""
+    nome_normalizado = nome.strip().lower()
+    for c in conn.execute("SELECT * FROM clientes").fetchall():
+        if c["nome"].strip().lower() == nome_normalizado:
+            return c
+    return None
+
+
+def criar_cliente(conn, nome, telefone):
+    cur = conn.execute(
+        "INSERT INTO clientes (nome, telefone, criado_em) VALUES (?, ?, ?)",
+        (nome.strip(), telefone.strip(), hoje()),
+    )
+    conn.commit()
+    return cur.lastrowid
+
+
+# ---------- Compras ----------
+
+def saldo_compra(conn, compra):
+    pago = conn.execute(
+        "SELECT COALESCE(SUM(valor), 0) AS total FROM pagamentos WHERE compra_id = ?",
+        (compra["id"],),
+    ).fetchone()["total"]
+    return round(compra["valor_total"] - pago, 2), round(pago, 2)
+
+
+def listar_compras_cliente(conn, cliente_id):
+    compras = conn.execute(
+        "SELECT * FROM compras WHERE cliente_id = ? ORDER BY data DESC, id DESC",
+        (cliente_id,),
+    ).fetchall()
+    resultado = []
+    for c in compras:
+        saldo, pago = saldo_compra(conn, c)
+        resultado.append({**dict(c), "saldo": saldo, "pago": pago})
+    return resultado
+
+
+def buscar_compra(conn, compra_id):
+    return conn.execute("SELECT * FROM compras WHERE id = ?", (compra_id,)).fetchone()
+
+
+def criar_compra(conn, cliente_id, descricao, valor_total, datas_parcelas):
+    """datas_parcelas: uma data (AAAA-MM-DD) por parcela, na ordem — cada uma já vem
+    editada da tela se o Thiago mudou o padrão de 30 em 30 dias. Lista vazia = à vista,
+    sem parcela fixa."""
+    cur = conn.execute(
+        "INSERT INTO compras (cliente_id, descricao, valor_total, data) VALUES (?, ?, ?, ?)",
+        (cliente_id, descricao.strip(), valor_total, hoje()),
+    )
+    compra_id = cur.lastrowid
+    datas_parcelas = [d for d in datas_parcelas if d]
+    if datas_parcelas:
+        valor_parcela = round(valor_total / len(datas_parcelas), 2)
+        for i, venc in enumerate(datas_parcelas):
+            conn.execute(
+                "INSERT INTO parcelas (compra_id, numero, valor_previsto, vencimento) VALUES (?, ?, ?, ?)",
+                (compra_id, i + 1, valor_parcela, venc),
+            )
+    conn.commit()
+    return compra_id
+
+
+def editar_valor_compra(conn, compra_id, novo_valor):
+    """Edita o valor da compra a qualquer momento, mesmo com pagamento já registrado.
+    Nunca bloqueia — só registra a mudança no histórico."""
+    compra = buscar_compra(conn, compra_id)
+    valor_antigo = compra["valor_total"]
+    conn.execute("UPDATE compras SET valor_total = ? WHERE id = ?", (novo_valor, compra_id))
+    conn.execute(
+        "INSERT INTO historico_edicoes (compra_id, campo, valor_antigo, valor_novo, data) VALUES (?, ?, ?, ?, ?)",
+        (compra_id, "valor_total", str(valor_antigo), str(novo_valor), hoje()),
+    )
+    conn.commit()
+
+
+def historico_compra(conn, compra_id):
+    return conn.execute(
+        "SELECT * FROM historico_edicoes WHERE compra_id = ? ORDER BY id DESC", (compra_id,)
+    ).fetchall()
+
+
+def parcelas_compra(conn, compra_id):
+    return conn.execute(
+        "SELECT * FROM parcelas WHERE compra_id = ? ORDER BY numero", (compra_id,)
+    ).fetchall()
+
+
+# ---------- Pagamentos ----------
+
+def registrar_pagamento(conn, compra_id, valor, forma_pagamento, parcela_id=None):
+    cur = conn.execute(
+        "INSERT INTO pagamentos (compra_id, parcela_id, valor, data, forma_pagamento) VALUES (?, ?, ?, ?, ?)",
+        (compra_id, parcela_id, valor, hoje(), forma_pagamento),
+    )
+    conn.commit()
+    return cur.lastrowid
+
+
+def buscar_pagamento(conn, pagamento_id):
+    return conn.execute("SELECT * FROM pagamentos WHERE id = ?", (pagamento_id,)).fetchone()
+
+
+def pagamentos_compra(conn, compra_id):
+    return conn.execute(
+        "SELECT * FROM pagamentos WHERE compra_id = ? ORDER BY id DESC", (compra_id,)
+    ).fetchall()
+
+
+def editar_pagamento(conn, pagamento_id, novo_valor, nova_data, nova_forma_pagamento):
+    """Edita um pagamento já registrado — inclusive a data (ex.: baixa lançada dia 13,
+    mas o Pix caiu dia 10; corrige aqui pra não gerar atraso indevido). Nunca bloqueia,
+    só registra a mudança no histórico da compra."""
+    pag = buscar_pagamento(conn, pagamento_id)
+    mudancas = []
+    if str(pag["valor"]) != str(novo_valor):
+        mudancas.append(("pagamento_valor", pag["valor"], novo_valor))
+    if pag["data"] != nova_data:
+        mudancas.append(("pagamento_data", pag["data"], nova_data))
+    if (pag["forma_pagamento"] or "") != (nova_forma_pagamento or ""):
+        mudancas.append(("pagamento_forma", pag["forma_pagamento"], nova_forma_pagamento))
+
+    conn.execute(
+        "UPDATE pagamentos SET valor = ?, data = ?, forma_pagamento = ? WHERE id = ?",
+        (novo_valor, nova_data, nova_forma_pagamento, pagamento_id),
+    )
+    for campo, antigo, novo in mudancas:
+        conn.execute(
+            "INSERT INTO historico_edicoes (compra_id, campo, valor_antigo, valor_novo, data) VALUES (?, ?, ?, ?, ?)",
+            (pag["compra_id"], campo, str(antigo), str(novo), hoje()),
+        )
+    conn.commit()
+
+
+def excluir_pagamento(conn, pagamento_id):
+    """Estorna um pagamento lançado errado. Fica registrado no histórico da compra."""
+    pag = buscar_pagamento(conn, pagamento_id)
+    conn.execute(
+        "INSERT INTO historico_edicoes (compra_id, campo, valor_antigo, valor_novo, data) VALUES (?, ?, ?, ?, ?)",
+        (pag["compra_id"], "pagamento_estornado", f"R$ {pag['valor']:.2f} em {pag['data']}", "estornado", hoje()),
+    )
+    conn.execute("DELETE FROM pagamentos WHERE id = ?", (pagamento_id,))
+    conn.commit()
+
+
+# ---------- Produtos (sincronizado do CATALOGO.csv do Cláudio) ----------
+
+def listar_produtos(conn, busca=None):
+    if busca:
+        termo = f"%{busca}%"
+        return conn.execute(
+            "SELECT * FROM produtos WHERE nome LIKE ? OR codigo LIKE ? OR marca LIKE ? ORDER BY marca, nome",
+            (termo, termo, termo),
+        ).fetchall()
+    return conn.execute("SELECT * FROM produtos ORDER BY marca, nome").fetchall()
+
+
+def buscar_produto(conn, codigo):
+    return conn.execute("SELECT * FROM produtos WHERE codigo = ?", (codigo,)).fetchone()
+
+
+def upsert_produto(conn, produto: dict):
+    conn.execute(
+        """
+        INSERT INTO produtos (codigo, id_origem, nome, marca, tipo, genero, categoria,
+                               numeracao, preco_venda, preco_custo, linha, status_catalogo, atualizado_em)
+        VALUES (:codigo, :id_origem, :nome, :marca, :tipo, :genero, :categoria,
+                :numeracao, :preco_venda, :preco_custo, :linha, :status_catalogo, :atualizado_em)
+        ON CONFLICT(codigo) DO UPDATE SET
+            id_origem = excluded.id_origem,
+            nome = excluded.nome,
+            marca = excluded.marca,
+            tipo = excluded.tipo,
+            genero = excluded.genero,
+            categoria = excluded.categoria,
+            numeracao = excluded.numeracao,
+            preco_venda = excluded.preco_venda,
+            linha = excluded.linha,
+            status_catalogo = excluded.status_catalogo,
+            atualizado_em = excluded.atualizado_em
+        """,
+        produto,
+    )
+    # preco_custo nunca é sobrescrito pelo import — é preenchido à mão dentro do app
+    # (o CATALOGO.csv do Cláudio só tem preço de venda, não tem custo).
+
+
+def definir_custo_produto(conn, codigo, preco_custo):
+    conn.execute("UPDATE produtos SET preco_custo = ? WHERE codigo = ?", (preco_custo, codigo))
+    conn.commit()
+
+
+# ---------- Vendas (todas as compras, de todos os clientes, numa lista só) ----------
+
+def listar_vendas(conn):
+    linhas = conn.execute(
+        """
+        SELECT compras.*, clientes.nome AS cliente_nome
+        FROM compras
+        JOIN clientes ON clientes.id = compras.cliente_id
+        ORDER BY compras.data DESC, compras.id DESC
+        """
+    ).fetchall()
+    resultado = []
+    for c in linhas:
+        saldo, pago = saldo_compra(conn, c)
+        resultado.append({**dict(c), "saldo": saldo, "pago": pago})
+    return resultado
+
+
+# ---------- Relatórios ----------
+
+def _atraso_compra(conn, compra):
+    """Mesma lógica usada no resumo do painel, isolada aqui pra reaproveitar por cliente."""
+    saldo, pago = saldo_compra(conn, compra)
+    if saldo <= 0:
+        return 0.0, saldo
+    parcelas = parcelas_compra(conn, compra["id"])
+    if not parcelas:
+        return 0.0, saldo
+    hoje_str = hoje()
+    vencido_previsto = sum(p["valor_previsto"] for p in parcelas if p["vencimento"] <= hoje_str)
+    atraso = max(0.0, min(saldo, vencido_previsto - pago))
+    return round(atraso, 2), saldo
+
+
+def vendas_mensais(conn):
+    """Total vendido (valor das compras registradas) por mês — não é caixa, é venda."""
+    linhas = conn.execute(
+        """
+        SELECT substr(data, 1, 7) AS mes, COUNT(*) AS qtd, SUM(valor_total) AS total
+        FROM compras
+        GROUP BY mes
+        ORDER BY mes DESC
+        """
+    ).fetchall()
+    return [{"mes": l["mes"], "qtd_compras": l["qtd"], "total_vendido": round(l["total"], 2)} for l in linhas]
+
+
+def clientes_atrasados(conn):
+    """Clientes com pelo menos uma parcela vencida ainda não coberta pelo total pago."""
+    resultado = {}
+    for c in conn.execute("SELECT * FROM compras").fetchall():
+        atraso, saldo = _atraso_compra(conn, c)
+        if atraso <= 0:
+            continue
+        cliente_id = c["cliente_id"]
+        resultado.setdefault(cliente_id, {"atraso": 0.0, "num_compras": 0})
+        resultado[cliente_id]["atraso"] += atraso
+        resultado[cliente_id]["num_compras"] += 1
+    lista = []
+    for cliente_id, dados in resultado.items():
+        cliente = buscar_cliente(conn, cliente_id)
+        lista.append({**dict(cliente), "atraso": round(dados["atraso"], 2), "num_compras": dados["num_compras"]})
+    lista.sort(key=lambda x: -x["atraso"])
+    return lista
+
+
+def clientes_em_aberto(conn):
+    """Clientes com saldo pendente, atrasado ou não — visão ampla de fiado em aberto."""
+    resultado = {}
+    for c in conn.execute("SELECT * FROM compras").fetchall():
+        saldo, _ = saldo_compra(conn, c)
+        if saldo <= 0:
+            continue
+        cliente_id = c["cliente_id"]
+        resultado.setdefault(cliente_id, {"saldo": 0.0, "num_compras": 0})
+        resultado[cliente_id]["saldo"] += saldo
+        resultado[cliente_id]["num_compras"] += 1
+    lista = []
+    for cliente_id, dados in resultado.items():
+        cliente = buscar_cliente(conn, cliente_id)
+        lista.append({**dict(cliente), "saldo_total": round(dados["saldo"], 2), "num_compras": dados["num_compras"]})
+    lista.sort(key=lambda x: -x["saldo_total"])
+    return lista
+
+
+def clientes_sem_compra(conn, dias):
+    """Clientes que não compram há X dias — inclui quem nunca comprou nada."""
+    from datetime import timedelta
+
+    corte = (date.today() - timedelta(days=dias)).isoformat()
+    lista = []
+    for cliente in listar_clientes(conn):
+        ultima = conn.execute(
+            "SELECT MAX(data) AS ultima FROM compras WHERE cliente_id = ?", (cliente["id"],)
+        ).fetchone()["ultima"]
+        if ultima is None or ultima < corte:
+            lista.append({**dict(cliente), "ultima_compra": ultima})
+    lista.sort(key=lambda x: x["ultima_compra"] or "")
+    return lista
+
+
+# ---------- Dashboard ----------
+
+def resumo_geral(conn):
+    """Total a receber, em atraso (parcela vencida ainda não coberta pelo total pago) e a vencer."""
+    compras = conn.execute("SELECT * FROM compras").fetchall()
+    total_receber = 0.0
+    total_atraso = 0.0
+    total_a_vencer = 0.0
+    hoje_str = hoje()
+    for c in compras:
+        saldo, pago = saldo_compra(conn, c)
+        if saldo <= 0:
+            continue
+        total_receber += saldo
+        parcelas = parcelas_compra(conn, c["id"])
+        if not parcelas:
+            total_a_vencer += saldo
+            continue
+        vencido_previsto = sum(p["valor_previsto"] for p in parcelas if p["vencimento"] <= hoje_str)
+        atraso = max(0.0, min(saldo, vencido_previsto - pago))
+        total_atraso += atraso
+        total_a_vencer += max(0.0, saldo - atraso)
+    return {
+        "total_receber": round(total_receber, 2),
+        "total_atraso": round(total_atraso, 2),
+        "total_a_vencer": round(total_a_vencer, 2),
+    }

@@ -1,0 +1,28 @@
+{% extends "base.html" %}
+{% block titulo %}Painel — Financeiro{% endblock %}
+{% block conteudo %}
+<h2>Painel</h2>
+<div class="grid-resumo">
+  <div class="stat">
+    <div class="valor">R$ {{ "%.2f"|format(resumo.total_receber) }}</div>
+    <div class="rotulo">Total a receber</div>
+  </div>
+  <div class="stat">
+    <div class="valor" style="color:#C2293C">R$ {{ "%.2f"|format(resumo.total_atraso) }}</div>
+    <div class="rotulo">Em atraso</div>
+  </div>
+  <div class="stat">
+    <div class="valor">R$ {{ "%.2f"|format(resumo.total_a_vencer) }}</div>
+    <div class="rotulo">A vencer</div>
+  </div>
+  <div class="stat">
+    <div class="valor">{{ total_clientes }}</div>
+    <div class="rotulo">Clientes cadastrados</div>
+  </div>
+</div>
+
+<div class="card" style="margin-top:24px;">
+  <p>Bem-vindo(a) de volta! Use o menu ao lado para gerenciar clientes, compras/fiado, produtos e exportar relatórios.</p>
+  <a class="btn" href="{{ url_for('clientes') }}">Ver clientes</a>
+</div>
+{% endblock %}

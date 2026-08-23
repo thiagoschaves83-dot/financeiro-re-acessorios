@@ -62,7 +62,7 @@
 <table>
   <tr><th>Data</th><th>Cliente</th><th>Descrição</th><th>Valor total</th><th>Pago</th><th>Saldo</th><th></th></tr>
   {% for v in vendas %}
-  <tr>
+  <tr ondblclick="window.location='{{ url_for('cliente_detalhe', cliente_id=v.cliente_id) }}'" style="cursor:pointer" title="Clique duas vezes pra abrir o cliente">
     <td>{{ v.data | data_br }}</td>
     <td>{{ v.cliente_nome }} <a href="{{ url_for('cliente_detalhe', cliente_id=v.cliente_id) }}?editar=1" title="Editar cliente" style="font-size:0.85rem;">✏️</a></td>
     <td>{{ v.descricao }}</td>

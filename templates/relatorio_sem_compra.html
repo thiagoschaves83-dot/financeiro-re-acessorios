@@ -18,7 +18,7 @@
   <tr>
     <td>{{ d.nome }}</td>
     <td>{{ d.telefone or "—" }}</td>
-    <td>{{ d.ultima_compra or "nunca comprou" }}</td>
+    <td>{{ d.ultima_compra | data_br if d.ultima_compra else "nunca comprou" }}</td>
   </tr>
   {% else %}
   <tr><td colspan="3">Todo mundo comprou nos últimos {{ dias }} dias.</td></tr>

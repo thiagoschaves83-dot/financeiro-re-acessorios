@@ -22,6 +22,18 @@ app.config["SESSION_COOKIE_HTTPONLY"] = True
 db.init_db()
 
 
+@app.template_filter("data_br")
+def data_br(valor):
+    """Converte AAAA-MM-DD (formato interno) pra DD/MM/AAAA (formato de exibição)."""
+    if not valor:
+        return valor
+    partes = valor.split("-")
+    if len(partes) != 3:
+        return valor
+    ano, mes, dia = partes
+    return f"{dia}/{mes}/{ano}"
+
+
 @app.before_request
 def exigir_login():
     rotas_livres = {"login", "definir_senha", "static"}
@@ -146,7 +158,22 @@ def cliente_detalhe(cliente_id):
     compras = db.listar_compras_cliente(conn, cliente_id)
     produtos = db.listar_produtos(conn)
     conn.close()
-    return render_template("cliente_detalhe.html", cliente=cliente, compras=compras, produtos=produtos)
+    abrir_edicao = request.args.get("editar") == "1"
+    return render_template("cliente_detalhe.html", cliente=cliente, compras=compras, produtos=produtos, abrir_edicao=abrir_edicao)
+
+
+@app.route("/clientes/<int:cliente_id>/editar", methods=["POST"])
+def editar_cliente(cliente_id):
+    nome = request.form.get("nome", "").strip()
+    telefone = request.form.get("telefone", "").strip()
+    if not nome:
+        flash("Nome é obrigatório.", "erro")
+        return redirect(url_for("cliente_detalhe", cliente_id=cliente_id))
+    conn = db.get_conn()
+    db.editar_cliente(conn, cliente_id, nome, telefone)
+    conn.close()
+    flash("Dados do cliente atualizados.", "ok")
+    return redirect(url_for("cliente_detalhe", cliente_id=cliente_id))
 
 
 # ---------- Compras ----------

@@ -369,9 +369,16 @@ async function buscarClientesDuplicados(nome, telefone) {
   }
 }
 
+function _dataBr(iso) {
+  if (!iso) return null;
+  const partes = iso.split("-");
+  if (partes.length !== 3) return iso;
+  return `${partes[2]}/${partes[1]}/${partes[0]}`;
+}
+
 function _linhaClienteDuplicado(d) {
   const saldo = (d.saldo_total || 0).toFixed(2).replace(".", ",");
-  const ultima = d.ultima_compra || "nunca comprou";
+  const ultima = _dataBr(d.ultima_compra) || "nunca comprou";
   return `- ${d.nome} — ${d.telefone || "sem telefone cadastrado"} — saldo em aberto: R$ ${saldo} — última compra: ${ultima}`;
 }
 

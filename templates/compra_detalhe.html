@@ -32,7 +32,7 @@
   <table>
     <tr><th>Nº</th><th>Valor previsto</th><th>Vencimento</th></tr>
     {% for p in parcelas %}
-    <tr><td>{{ p.numero }}</td><td>R$ {{ "%.2f"|format(p.valor_previsto) }}</td><td>{{ p.vencimento }}</td></tr>
+    <tr><td>{{ p.numero }}</td><td>R$ {{ "%.2f"|format(p.valor_previsto) }}</td><td>{{ p.vencimento | data_br }}</td></tr>
     {% endfor %}
   </table>
 </div>
@@ -58,7 +58,7 @@
   <tr><th>Data</th><th>Valor</th><th>Forma</th><th></th></tr>
   {% for p in pagamentos %}
   <tr>
-    <td>{{ p.data }}</td>
+    <td>{{ p.data | data_br }}</td>
     <td>R$ {{ "%.2f"|format(p.valor) }}</td>
     <td>{{ p.forma_pagamento or "—" }}</td>
     <td>
@@ -82,7 +82,7 @@
 <table>
   <tr><th>Data</th><th>Campo</th><th>De</th><th>Para</th></tr>
   {% for h in historico %}
-  <tr><td>{{ h.data }}</td><td>{{ h.campo }}</td><td>{{ h.valor_antigo }}</td><td>{{ h.valor_novo }}</td></tr>
+  <tr><td>{{ h.data | data_br }}</td><td>{{ h.campo }}</td><td>{{ h.valor_antigo }}</td><td>{{ h.valor_novo }}</td></tr>
   {% endfor %}
 </table>
 {% endif %}

@@ -63,8 +63,8 @@
   <tr><th>Data</th><th>Cliente</th><th>Descrição</th><th>Valor total</th><th>Pago</th><th>Saldo</th><th></th></tr>
   {% for v in vendas %}
   <tr>
-    <td>{{ v.data }}</td>
-    <td>{{ v.cliente_nome }}</td>
+    <td>{{ v.data | data_br }}</td>
+    <td>{{ v.cliente_nome }} <a href="{{ url_for('cliente_detalhe', cliente_id=v.cliente_id) }}?editar=1" title="Editar cliente" style="font-size:0.85rem;">✏️</a></td>
     <td>{{ v.descricao }}</td>
     <td>R$ {{ "%.2f"|format(v.valor_total) }}</td>
     <td>R$ {{ "%.2f"|format(v.pago) }}</td>

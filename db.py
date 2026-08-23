@@ -122,6 +122,17 @@ def criar_cliente(conn, nome, telefone):
     return cur.lastrowid
 
 
+def editar_cliente(conn, cliente_id, nome, telefone):
+    """Corrige nome/telefone a qualquer momento (ex.: erro de digitação ou dado
+    importado errado) — sem histórico, porque historico_edicoes é amarrado a
+    compra_id, não a cliente_id."""
+    conn.execute(
+        "UPDATE clientes SET nome = ?, telefone = ? WHERE id = ?",
+        (nome.strip(), (telefone or "").strip(), cliente_id),
+    )
+    conn.commit()
+
+
 def _normalizar_texto(texto):
     """Minúsculo, sem acento, sem espaço duplicado — usada tanto pra nome de cliente
     quanto pra nome/código/marca de produto, pra comparar sem que 'É' vs 'e' ou

@@ -102,13 +102,14 @@ def dashboard():
 @app.route("/clientes")
 def clientes():
     conn = db.get_conn()
+    busca = request.args.get("q", "").strip() or None
     lista = []
-    for c in db.listar_clientes(conn):
+    for c in db.listar_clientes(conn, busca):
         compras = db.listar_compras_cliente(conn, c["id"])
         saldo_total = round(sum(x["saldo"] for x in compras if x["saldo"] > 0), 2)
         lista.append({**dict(c), "saldo_total": saldo_total, "num_compras": len(compras)})
     conn.close()
-    return render_template("clientes.html", clientes=lista)
+    return render_template("clientes.html", clientes=lista, busca=busca or "")
 
 
 @app.route("/clientes/novo", methods=["POST"])

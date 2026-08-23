@@ -6,12 +6,10 @@
 <div class="card">
   <form method="post">
     <label>Produto (busque de novo se selecionou errado, ou edite o texto direto)</label>
-    <input type="text" id="campo-produto-editar" list="lista-produtos-editar" style="width:400px" placeholder="Busque por nome, código ou marca do catálogo, ou digite livre">
-    <datalist id="lista-produtos-editar">
-      {% for p in produtos %}
-      <option value="{{ p.codigo }} — {{ p.nome }}{% if p.marca %} ({{ p.marca }}){% endif %}{% if p.numeracao %} — {{ p.numeracao }}{% endif %}" data-preco="{{ p.preco_venda or '' }}">
-      {% endfor %}
-    </datalist>
+    <div class="campo-autocomplete" style="width:400px;">
+      <input type="text" id="campo-produto-editar" autocomplete="off" style="width:400px" placeholder="Busque por nome, código ou marca do catálogo (sem acento já acha), ou digite livre">
+      <div class="autocomplete-dropdown" id="dropdown-produto-editar"></div>
+    </div>
     <input type="text" name="descricao" id="campo-descricao-editar" value="{{ compra.descricao }}" required style="width:400px">
     <div style="margin:4px 0 0;">
       <button type="button" id="btn-toggle-produto-novo-editar" class="btn btn-secundario" style="font-size:0.8rem; padding:5px 10px;">Não achei o produto — cadastrar novo</button>
@@ -42,13 +40,20 @@
 </div>
 
 <script>
+const PRODUTOS_EDITAR = [
+  {% for p in produtos %}
+  { codigo: {{ p.codigo | tojson }}, nome: {{ p.nome | tojson }}, marca: {{ p.marca | tojson }},
+    numeracao: {{ p.numeracao | tojson }}, preco_venda: {{ p.preco_venda | tojson }} },
+  {% endfor %}
+];
 // Campo de descrição já vem preenchido com o texto atual (via atributo value do
-// HTML, sem reinterpolar no JS) — a busca no datalist só troca se o Thiago
+// HTML, sem reinterpolar no JS) — a busca no autocomplete só troca se o Thiago
 // realmente escolher outro produto.
 document.getElementById('campo-produto-editar').value = document.getElementById('campo-descricao-editar').value;
 inicializarSeletorProduto({
   produto: 'campo-produto-editar',
-  lista: 'lista-produtos-editar',
+  dropdown: 'dropdown-produto-editar',
+  itens: PRODUTOS_EDITAR,
   descricao: 'campo-descricao-editar',
   valor: 'campo-valor-editar',
   toggleNovo: 'btn-toggle-produto-novo-editar',

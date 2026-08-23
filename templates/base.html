@@ -86,6 +86,30 @@
   .atraso { color: var(--carmim); font-weight: 600; }
   .saldo-zero { color: #1F7A3E; }
 
+  /* Autocomplete "na mão" (cliente/produto em Nova venda, Nova compra e Editar
+     compra) — substitui o <datalist> nativo, que não dá pra ensinar a ignorar
+     acento. O campo de texto normal fica dentro desse wrapper, com o dropdown
+     de sugestões logo abaixo. */
+  .campo-autocomplete { position: relative; display: inline-block; }
+  .campo-autocomplete input { display: block; }
+  .autocomplete-dropdown {
+    display: none;
+    position: absolute;
+    top: 100%;
+    left: 0;
+    right: 0;
+    max-height: 260px;
+    overflow-y: auto;
+    background: var(--branco);
+    border: 1px solid var(--cinza);
+    border-top: none;
+    border-radius: 0 0 8px 8px;
+    box-shadow: 0 4px 10px rgba(0,0,0,0.1);
+    z-index: 20;
+  }
+  .autocomplete-opcao { padding: 8px 12px; font-size: 0.88rem; cursor: pointer; }
+  .autocomplete-opcao:hover, .autocomplete-opcao.ativa { background: var(--fundo); }
+
   /* Celular: a barra lateral fixa de 220px e os campos com largura fixa em pixel
      cortavam conteúdo em tela pequena. Aqui vira barra de cima, rolável, e os
      campos de formulário passam a ocupar a largura disponível. */
@@ -109,31 +133,19 @@
       box-sizing: border-box;
     }
     .card { padding: 14px; }
+    .campo-autocomplete { display: block; width: 100%; }
   }
 </style>
 </head>
 <body>
-<div class="app">
-  <nav class="lateral">
-    <h1>Rê Acessórios<br><small style="color:var(--branco); font-weight:400;">Financeiro</small></h1>
-    <a href="{{ url_for('dashboard') }}">📊 Painel</a>
-    <a href="{{ url_for('clientes') }}">👥 Clientes</a>
-    <a href="{{ url_for('vendas') }}">🧾 Vendas</a>
-    <a href="{{ url_for('produtos') }}">🛍️ Produtos</a>
-    <a href="{{ url_for('relatorios') }}">📑 Relatórios</a>
-    <a href="{{ url_for('backup') }}">💾 Baixar backup</a>
-    <a href="{{ url_for('logout') }}" style="margin-top:16px; opacity:0.75;">🔒 Sair</a>
-  </nav>
-  <main class="conteudo">
-    {% with mensagens = get_flashed_messages(with_categories=true) %}
-      {% for categoria, msg in mensagens %}
-        <div class="flash {{ categoria }}">{{ msg }}</div>
-      {% endfor %}
-    {% endwith %}
-    {% block conteudo %}{% endblock %}
-  </main>
-</div>
 <script>
+// ATENÇÃO: este bloco fica ANTES do bloco de conteúdo das telas filhas, de
+// propósito — as telas filhas (vendas.html, clientes.html etc.) chamam essas
+// funções no próprio script delas, dentro do bloco de conteúdo. Se essas
+// definições ficassem depois (como já esteve, por engano), a chamada roda
+// antes da função existir e quebra com "ReferenceError" silencioso — nenhuma
+// máscara nem autocomplete funciona, sem erro visível na tela, só no console.
+
 // Gera uma caixinha de data por parcela — padrão 30 dias entre uma e outra,
 // mas cada uma continua editável na mão depois de gerada. Só regenera quando
 // o número de parcelas muda, pra não apagar data que o Thiago já ajustou.
@@ -180,8 +192,76 @@ function aplicarMascaraTelefone(idCampo) {
   });
 }
 
-// ---------- Seletor de produto (datalist) com cadastro rápido, usado em
-// Nova venda e Nova compra. Recebe os ids dos elementos de cada tela. ----------
+// ---------- Normalização sem acento (mesmo critério do backend, _normalizar_texto
+// em db.py) — usada pelo autocomplete de cliente/produto, pra digitar "Cecilia"
+// sem acento e achar "Maria Cecília". ----------
+function normalizarTexto(texto) {
+  return (texto || "")
+    .toString()
+    .normalize("NFD")
+    .replace(/[̀-ͯ]/g, "")
+    .toLowerCase()
+    .trim()
+    .replace(/\s+/g, " ");
+}
+
+// ---------- Autocomplete "na mão" (dropdown simples abaixo do campo) — substitui
+// o <datalist> nativo, que não dá pra ensinar a ignorar acento. Filtra por trecho,
+// em qualquer parte do texto, sem acento. Se não achar nada, o campo continua
+// editável livre (cliente novo / produto ainda não cadastrado). ----------
+function configurarAutocomplete(cfg) {
+  // cfg = { idCampo, idDropdown, itens, textoItem(item), textoBusca(item)?,
+  //         rotuloItem(item)?, aoSelecionar(item)?, limite? }
+  const campo = document.getElementById(cfg.idCampo);
+  const dropdown = document.getElementById(cfg.idDropdown);
+  if (!campo || !dropdown) return;
+  const limite = cfg.limite || 30;
+
+  function renderizar(encontrados) {
+    dropdown.innerHTML = "";
+    if (encontrados.length === 0) {
+      dropdown.style.display = "none";
+      return;
+    }
+    encontrados.slice(0, limite).forEach(item => {
+      const opcao = document.createElement("div");
+      opcao.className = "autocomplete-opcao";
+      opcao.textContent = cfg.rotuloItem ? cfg.rotuloItem(item) : cfg.textoItem(item);
+      // mousedown (não click) pra disparar antes do blur do campo esconder o dropdown
+      opcao.addEventListener("mousedown", (ev) => {
+        ev.preventDefault();
+        campo.value = cfg.textoItem(item);
+        dropdown.style.display = "none";
+        if (cfg.aoSelecionar) cfg.aoSelecionar(item);
+      });
+      dropdown.appendChild(opcao);
+    });
+    dropdown.style.display = "block";
+  }
+
+  function filtrar() {
+    const termo = normalizarTexto(campo.value);
+    if (!termo) {
+      dropdown.style.display = "none";
+      return;
+    }
+    const encontrados = cfg.itens.filter(item =>
+      normalizarTexto(cfg.textoBusca ? cfg.textoBusca(item) : cfg.textoItem(item)).includes(termo)
+    );
+    renderizar(encontrados);
+  }
+
+  campo.addEventListener("input", filtrar);
+  campo.addEventListener("focus", filtrar);
+  campo.addEventListener("blur", () => {
+    // pequeno atraso pra dar tempo do mousedown na opção rodar antes do dropdown sumir
+    setTimeout(() => { dropdown.style.display = "none"; }, 150);
+  });
+}
+
+// ---------- Seletor de produto (autocomplete + cadastro rápido), usado em
+// Nova venda, Nova compra e Editar compra. Recebe os ids dos elementos de cada
+// tela e o array de produtos já embutido na página (cfg.itens). ----------
 function formatarOpcaoProduto(p) {
   let texto = `${p.codigo} — ${p.nome}`;
   if (p.marca) texto += ` (${p.marca})`;
@@ -191,20 +271,33 @@ function formatarOpcaoProduto(p) {
 
 function inicializarSeletorProduto(cfg) {
   const campoProduto = document.getElementById(cfg.produto);
-  const lista = document.getElementById(cfg.lista);
   const campoDescricao = document.getElementById(cfg.descricao);
   const campoValor = document.getElementById(cfg.valor);
-  if (!campoProduto || !lista) return;
+  if (!campoProduto) return;
 
-  function sincronizar() {
-    const valorDigitado = campoProduto.value;
-    if (campoDescricao) campoDescricao.value = valorDigitado;
-    const opcao = Array.from(lista.options).find(o => o.value === valorDigitado);
-    if (opcao && opcao.dataset.preco && campoValor) {
-      campoValor.value = parseFloat(opcao.dataset.preco).toFixed(2).replace(".", ",");
+  function aplicarProduto(p) {
+    const texto = formatarOpcaoProduto(p);
+    campoProduto.value = texto;
+    if (campoDescricao) campoDescricao.value = texto;
+    if (p.preco_venda && campoValor) {
+      campoValor.value = parseFloat(p.preco_venda).toFixed(2).replace(".", ",");
     }
   }
-  campoProduto.addEventListener("input", sincronizar);
+
+  // Enquanto o Thiago digita livre (produto ainda não selecionado/cadastrado),
+  // a descrição continua espelhando o texto — só o valor não é mexido, porque
+  // sem um produto selecionado não tem preço de catálogo pra sugerir.
+  campoProduto.addEventListener("input", () => {
+    if (campoDescricao) campoDescricao.value = campoProduto.value;
+  });
+
+  configurarAutocomplete({
+    idCampo: cfg.produto,
+    idDropdown: cfg.dropdown,
+    itens: cfg.itens,
+    textoItem: formatarOpcaoProduto,
+    aoSelecionar: aplicarProduto,
+  });
 
   // Cadastro rápido — só liga se a tela tiver o mini-formulário (nem toda tela precisa)
   if (!cfg.toggleNovo) return;
@@ -247,13 +340,8 @@ function inicializarSeletorProduto(cfg) {
         return;
       }
       const p = dados.produto;
-      const opcao = document.createElement("option");
-      const textoOpcao = formatarOpcaoProduto(p);
-      opcao.value = textoOpcao;
-      if (p.preco_venda) opcao.dataset.preco = p.preco_venda;
-      lista.appendChild(opcao);
-      campoProduto.value = textoOpcao;
-      sincronizar();
+      cfg.itens.push(p);
+      aplicarProduto(p);
       campoCodigoNovo.value = "";
       campoNomeNovo.value = "";
       campoMarcaNovo.value = "";
@@ -302,5 +390,25 @@ function montarAvisoClienteDuplicado(duplicados) {
   return texto;
 }
 </script>
+<div class="app">
+  <nav class="lateral">
+    <h1>Rê Acessórios<br><small style="color:var(--branco); font-weight:400;">Financeiro</small></h1>
+    <a href="{{ url_for('dashboard') }}">📊 Painel</a>
+    <a href="{{ url_for('clientes') }}">👥 Clientes</a>
+    <a href="{{ url_for('vendas') }}">🧾 Vendas</a>
+    <a href="{{ url_for('produtos') }}">🛍️ Produtos</a>
+    <a href="{{ url_for('relatorios') }}">📑 Relatórios</a>
+    <a href="{{ url_for('backup') }}">💾 Baixar backup</a>
+    <a href="{{ url_for('logout') }}" style="margin-top:16px; opacity:0.75;">🔒 Sair</a>
+  </nav>
+  <main class="conteudo">
+    {% with mensagens = get_flashed_messages(with_categories=true) %}
+      {% for categoria, msg in mensagens %}
+        <div class="flash {{ categoria }}">{{ msg }}</div>
+      {% endfor %}
+    {% endwith %}
+    {% block conteudo %}{% endblock %}
+  </main>
+</div>
 </body>
 </html>

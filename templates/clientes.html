@@ -3,6 +3,14 @@
 {% block conteudo %}
 <h2>Clientes</h2>
 
+<div class="card" style="display:flex; gap:8px; align-items:center; flex-wrap:wrap;">
+  <form method="get" style="display:flex; gap:8px;">
+    <input type="text" name="q" value="{{ busca }}" placeholder="Buscar por nome (sem precisar de acento)" style="width:280px">
+    <button class="btn btn-secundario" type="submit">Buscar</button>
+    {% if busca %}<a class="btn btn-secundario" href="{{ url_for('clientes') }}">Limpar</a>{% endif %}
+  </form>
+</div>
+
 <div class="card">
   <form method="post" action="{{ url_for('novo_cliente') }}" id="form-novo-cliente">
     <label>Nome</label>
@@ -26,7 +34,7 @@
     <td><a href="{{ url_for('cliente_detalhe', cliente_id=c.id) }}">ver →</a></td>
   </tr>
   {% else %}
-  <tr><td colspan="5">Nenhum cliente cadastrado ainda.</td></tr>
+  <tr><td colspan="5">{% if busca %}Nenhum cliente encontrado pra "{{ busca }}".{% else %}Nenhum cliente cadastrado ainda.{% endif %}</td></tr>
   {% endfor %}
 </table>
 

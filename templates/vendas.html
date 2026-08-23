@@ -10,23 +10,19 @@
   </div>
   <form method="post" action="{{ url_for('nova_venda') }}" id="form-nova-venda" style="display:none; margin-top:16px;">
     <label>Nome do cliente</label>
-    <input type="text" name="cliente" id="campo-cliente" list="lista-clientes" required style="width:280px" placeholder="Digite o nome — se já existir, usamos o cadastro; se não, criamos um novo">
-    <datalist id="lista-clientes">
-      {% for nome in clientes_nomes %}
-      <option value="{{ nome }}">
-      {% endfor %}
-    </datalist>
+    <div class="campo-autocomplete" style="width:280px;">
+      <input type="text" name="cliente" id="campo-cliente" required autocomplete="off" style="width:280px" placeholder="Digite o nome (sem acento já acha) — se já existir, usamos o cadastro; se não, criamos um novo">
+      <div class="autocomplete-dropdown" id="dropdown-cliente"></div>
+    </div>
 
     <label>Telefone (só usado se for cliente novo)</label>
     <input type="text" name="telefone" id="campo-telefone-venda" placeholder="(32) 98888-7777" maxlength="15" style="width:200px">
 
     <label>Produto comprado</label>
-    <input type="text" id="campo-produto" list="lista-produtos" style="width:400px" placeholder="Busque por nome, código ou marca do catálogo, ou digite livre">
-    <datalist id="lista-produtos">
-      {% for p in produtos %}
-      <option value="{{ p.codigo }} — {{ p.nome }}{% if p.marca %} ({{ p.marca }}){% endif %}{% if p.numeracao %} — {{ p.numeracao }}{% endif %}" data-preco="{{ p.preco_venda or '' }}">
-      {% endfor %}
-    </datalist>
+    <div class="campo-autocomplete" style="width:400px;">
+      <input type="text" id="campo-produto" autocomplete="off" style="width:400px" placeholder="Busque por nome, código ou marca do catálogo (sem acento já acha), ou digite livre">
+      <div class="autocomplete-dropdown" id="dropdown-produto-venda"></div>
+    </div>
     <input type="hidden" name="descricao" id="campo-descricao" required>
     <div style="margin:4px 0 0;">
       <button type="button" id="btn-toggle-produto-novo-venda" class="btn btn-secundario" style="font-size:0.8rem; padding:5px 10px;">Não achei o produto — cadastrar novo</button>
@@ -81,6 +77,19 @@
 </table>
 
 <script>
+// Dados já embutidos na página (mesma lista que antes ia pro <datalist>) — o
+// autocomplete filtra isso em JS, sem outra chamada ao servidor.
+const CLIENTES_VENDA = [
+  {% for nome in clientes_nomes %}{{ nome | tojson }},
+  {% endfor %}
+];
+const PRODUTOS_VENDA = [
+  {% for p in produtos %}
+  { codigo: {{ p.codigo | tojson }}, nome: {{ p.nome | tojson }}, marca: {{ p.marca | tojson }},
+    numeracao: {{ p.numeracao | tojson }}, preco_venda: {{ p.preco_venda | tojson }} },
+  {% endfor %}
+];
+
 function toggleFormVenda() {
   const form = document.getElementById('form-nova-venda');
   const aberto = form.style.display !== 'none';
@@ -90,12 +99,22 @@ function toggleFormVenda() {
 
 aplicarMascaraTelefone('campo-telefone-venda');
 
-// Produto selecionado no datalist preenche descrição (texto real) e sugere o valor —
-// mas o campo de valor continua editável na mão, como pedido. Mesma função é usada
-// na tela de "Nova compra" de cada cliente (cliente_detalhe.html).
+// Autocomplete de cliente — digita um pedaço do nome, sem acento, e acha na lista
+// já cadastrada; se não achar nada, continua podendo digitar o nome de um cliente novo.
+configurarAutocomplete({
+  idCampo: 'campo-cliente',
+  idDropdown: 'dropdown-cliente',
+  itens: CLIENTES_VENDA,
+  textoItem: nome => nome,
+});
+
+// Produto selecionado no autocomplete preenche descrição (texto real) e sugere o
+// valor — mas o campo de valor continua editável na mão, como pedido. Mesma
+// função é usada na tela de "Nova compra" de cada cliente e em "Editar compra".
 inicializarSeletorProduto({
   produto: 'campo-produto',
-  lista: 'lista-produtos',
+  dropdown: 'dropdown-produto-venda',
+  itens: PRODUTOS_VENDA,
   descricao: 'campo-descricao',
   valor: 'campo-valor',
   toggleNovo: 'btn-toggle-produto-novo-venda',

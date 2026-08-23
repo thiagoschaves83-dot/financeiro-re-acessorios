@@ -87,8 +87,16 @@ def hoje():
 
 # ---------- Clientes ----------
 
-def listar_clientes(conn):
-    return conn.execute("SELECT * FROM clientes ORDER BY nome").fetchall()
+def listar_clientes(conn, busca=None):
+    """Sem `busca`, lista todo mundo. Com `busca`, filtra por trecho do nome —
+    ignorando acento e caixa (mesma normalização usada na checagem de duplicidade),
+    porque digitar "Cecilia" tem que achar "Maria Cecília" mesmo sem acento e sem
+    ser o nome inteiro."""
+    linhas = conn.execute("SELECT * FROM clientes ORDER BY nome").fetchall()
+    if not busca:
+        return linhas
+    termo = _normalizar_texto(busca)
+    return [c for c in linhas if termo in _normalizar_texto(c["nome"])]
 
 
 def buscar_cliente(conn, cliente_id):
@@ -114,12 +122,14 @@ def criar_cliente(conn, nome, telefone):
     return cur.lastrowid
 
 
-def _normalizar_nome(nome):
-    """Minúsculo, sem acento, sem espaço duplicado — pra comparar nome sem que
-    'É' vs 'e' ou espaço a mais atrapalhe o match."""
-    nome = (nome or "").strip().lower()
-    nome = "".join(c for c in unicodedata.normalize("NFKD", nome) if not unicodedata.combining(c))
-    return re.sub(r"\s+", " ", nome)
+def _normalizar_texto(texto):
+    """Minúsculo, sem acento, sem espaço duplicado — usada tanto pra nome de cliente
+    quanto pra nome/código/marca de produto, pra comparar sem que 'É' vs 'e' ou
+    espaço a mais atrapalhe o match (busca e checagem de duplicidade usam a mesma
+    definição de 'parecido')."""
+    texto = (texto or "").strip().lower()
+    texto = "".join(c for c in unicodedata.normalize("NFKD", texto) if not unicodedata.combining(c))
+    return re.sub(r"\s+", " ", texto)
 
 
 def _distancia_edicao(a, b):
@@ -158,11 +168,11 @@ def buscar_clientes_duplicados(conn, nome, telefone):
     marca gravidade 'forte'. Nome igual ou parecido (variação de grafia) é sinal
     mais fraco — marca 'branda'. Cada resultado já vem com saldo em aberto e última
     compra, pra ajudar o Thiago a decidir se é a mesma pessoa ou coincidência."""
-    nome_norm = _normalizar_nome(nome)
+    nome_norm = _normalizar_texto(nome)
     tel_digitos = re.sub(r"\D", "", telefone or "")
     resultado = []
     for c in conn.execute("SELECT * FROM clientes").fetchall():
-        c_nome_norm = _normalizar_nome(c["nome"])
+        c_nome_norm = _normalizar_texto(c["nome"])
         c_tel_digitos = re.sub(r"\D", "", c["telefone"] or "")
 
         bate_telefone = bool(tel_digitos) and tel_digitos == c_tel_digitos
@@ -350,13 +360,20 @@ def excluir_pagamento(conn, pagamento_id):
 # ---------- Produtos (sincronizado do CATALOGO.csv do Cláudio) ----------
 
 def listar_produtos(conn, busca=None):
-    if busca:
-        termo = f"%{busca}%"
-        return conn.execute(
-            "SELECT * FROM produtos WHERE nome LIKE ? OR codigo LIKE ? OR marca LIKE ? ORDER BY marca, nome",
-            (termo, termo, termo),
-        ).fetchall()
-    return conn.execute("SELECT * FROM produtos ORDER BY marca, nome").fetchall()
+    """Sem `busca`, lista tudo. Com `busca`, filtra em Python (não dá pra fazer
+    o SQL LIKE ignorar acento) comparando nome/código/marca já normalizados —
+    mesmo critério do resto do app: sem acento, por trecho, não precisa ser
+    a palavra inteira nem bater a caixa."""
+    linhas = conn.execute("SELECT * FROM produtos ORDER BY marca, nome").fetchall()
+    if not busca:
+        return linhas
+    termo = _normalizar_texto(busca)
+    resultado = []
+    for p in linhas:
+        campos = (p["nome"], p["codigo"], p["marca"])
+        if any(termo in _normalizar_texto(campo) for campo in campos if campo):
+            resultado.append(p)
+    return resultado
 
 
 def buscar_produto(conn, codigo):

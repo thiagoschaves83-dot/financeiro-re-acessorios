@@ -1,5 +1,7 @@
 """Banco de dados do app financeiro da Rê Acessórios — SQLite em arquivo único."""
+import re
 import sqlite3
+import unicodedata
 from pathlib import Path
 from datetime import date
 
@@ -112,6 +114,88 @@ def criar_cliente(conn, nome, telefone):
     return cur.lastrowid
 
 
+def _normalizar_nome(nome):
+    """Minúsculo, sem acento, sem espaço duplicado — pra comparar nome sem que
+    'É' vs 'e' ou espaço a mais atrapalhe o match."""
+    nome = (nome or "").strip().lower()
+    nome = "".join(c for c in unicodedata.normalize("NFKD", nome) if not unicodedata.combining(c))
+    return re.sub(r"\s+", " ", nome)
+
+
+def _distancia_edicao(a, b):
+    """Levenshtein simples (sem biblioteca externa) — usado só pra pegar variação
+    pequena de grafia (ex.: 'Vanda Baldutti' x 'Vanda Balduti')."""
+    if a == b:
+        return 0
+    if not a:
+        return len(b)
+    if not b:
+        return len(a)
+    anterior = list(range(len(b) + 1))
+    for i, ca in enumerate(a, 1):
+        atual = [i]
+        for j, cb in enumerate(b, 1):
+            custo = 0 if ca == cb else 1
+            atual.append(min(anterior[j] + 1, atual[j - 1] + 1, anterior[j - 1] + custo))
+        anterior = atual
+    return anterior[-1]
+
+
+def _nomes_parecidos(nome_a_norm, nome_b_norm):
+    """True se forem quase o mesmo nome (pequena variação de grafia) mas não
+    idênticos depois de normalizado. Tolerância proporcional ao tamanho do nome —
+    não precisa ser perfeito, só pegar os casos mais comuns de digitação."""
+    if not nome_a_norm or not nome_b_norm or nome_a_norm == nome_b_norm:
+        return False
+    distancia = _distancia_edicao(nome_a_norm, nome_b_norm)
+    tolerancia = max(1, round(max(len(nome_a_norm), len(nome_b_norm)) * 0.15))
+    return distancia <= tolerancia
+
+
+def buscar_clientes_duplicados(conn, nome, telefone):
+    """Usado só pro aviso (não bloqueante) de possível duplicidade no cadastro.
+    Telefone igual (comparando só os dígitos) é sinal forte de ser a mesma pessoa —
+    marca gravidade 'forte'. Nome igual ou parecido (variação de grafia) é sinal
+    mais fraco — marca 'branda'. Cada resultado já vem com saldo em aberto e última
+    compra, pra ajudar o Thiago a decidir se é a mesma pessoa ou coincidência."""
+    nome_norm = _normalizar_nome(nome)
+    tel_digitos = re.sub(r"\D", "", telefone or "")
+    resultado = []
+    for c in conn.execute("SELECT * FROM clientes").fetchall():
+        c_nome_norm = _normalizar_nome(c["nome"])
+        c_tel_digitos = re.sub(r"\D", "", c["telefone"] or "")
+
+        bate_telefone = bool(tel_digitos) and tel_digitos == c_tel_digitos
+        nome_identico = bool(nome_norm) and nome_norm == c_nome_norm
+        nome_parecido = bool(nome_norm) and not nome_identico and _nomes_parecidos(nome_norm, c_nome_norm)
+
+        if not (bate_telefone or nome_identico or nome_parecido):
+            continue
+
+        if bate_telefone:
+            motivo = "telefone"
+        elif nome_identico:
+            motivo = "nome_identico"
+        else:
+            motivo = "nome_parecido"
+
+        compras = listar_compras_cliente(conn, c["id"])
+        saldo_total = round(sum(x["saldo"] for x in compras if x["saldo"] > 0), 2)
+        ultima_compra = max((x["data"] for x in compras), default=None)
+
+        resultado.append({
+            "id": c["id"],
+            "nome": c["nome"],
+            "telefone": c["telefone"],
+            "saldo_total": saldo_total,
+            "ultima_compra": ultima_compra,
+            "motivo": motivo,
+            "gravidade": "forte" if bate_telefone else "branda",
+        })
+    resultado.sort(key=lambda r: 0 if r["gravidade"] == "forte" else 1)
+    return resultado
+
+
 # ---------- Compras ----------
 
 def saldo_compra(conn, compra):
@@ -159,16 +243,38 @@ def criar_compra(conn, cliente_id, descricao, valor_total, datas_parcelas):
     return compra_id
 
 
-def editar_valor_compra(conn, compra_id, novo_valor):
-    """Edita o valor da compra a qualquer momento, mesmo com pagamento já registrado.
-    Nunca bloqueia — só registra a mudança no histórico."""
+def editar_compra(conn, compra_id, novo_valor, nova_descricao):
+    """Edita valor e/ou descrição (produto) da compra a qualquer momento, mesmo com
+    pagamento já registrado. Nunca bloqueia — só registra cada mudança no histórico."""
     compra = buscar_compra(conn, compra_id)
-    valor_antigo = compra["valor_total"]
-    conn.execute("UPDATE compras SET valor_total = ? WHERE id = ?", (novo_valor, compra_id))
+    nova_descricao = (nova_descricao or "").strip()
+    mudancas = []
+    if str(compra["valor_total"]) != str(novo_valor):
+        mudancas.append(("valor_total", compra["valor_total"], novo_valor))
+    if (compra["descricao"] or "") != nova_descricao:
+        mudancas.append(("descricao", compra["descricao"], nova_descricao))
+
     conn.execute(
-        "INSERT INTO historico_edicoes (compra_id, campo, valor_antigo, valor_novo, data) VALUES (?, ?, ?, ?, ?)",
-        (compra_id, "valor_total", str(valor_antigo), str(novo_valor), hoje()),
+        "UPDATE compras SET valor_total = ?, descricao = ? WHERE id = ?",
+        (novo_valor, nova_descricao, compra_id),
     )
+    for campo, antigo, novo in mudancas:
+        conn.execute(
+            "INSERT INTO historico_edicoes (compra_id, campo, valor_antigo, valor_novo, data) VALUES (?, ?, ?, ?, ?)",
+            (compra_id, campo, str(antigo), str(novo), hoje()),
+        )
+    conn.commit()
+
+
+def excluir_compra(conn, compra_id):
+    """Exclui a compra inteira e tudo que pertence só a ela (parcelas, histórico de
+    edição, e qualquer pagamento remanescente). Quem chama já garantiu que não tem
+    pagamento de verdade registrado — a exclusão de pagamentos aqui é só rede de
+    segurança pra não sobrar nada órfão."""
+    conn.execute("DELETE FROM pagamentos WHERE compra_id = ?", (compra_id,))
+    conn.execute("DELETE FROM parcelas WHERE compra_id = ?", (compra_id,))
+    conn.execute("DELETE FROM historico_edicoes WHERE compra_id = ?", (compra_id,))
+    conn.execute("DELETE FROM compras WHERE id = ?", (compra_id,))
     conn.commit()
 
 
@@ -286,6 +392,51 @@ def upsert_produto(conn, produto: dict):
 def definir_custo_produto(conn, codigo, preco_custo):
     conn.execute("UPDATE produtos SET preco_custo = ? WHERE codigo = ?", (preco_custo, codigo))
     conn.commit()
+
+
+PREFIXO_PRODUTO_MANUAL = "MANUAL"
+
+
+def gerar_codigo_produto_manual(conn):
+    """Gera um código MANUALxxx sequencial, pro cadastro rápido de produto direto
+    na tela de venda/compra. Prefixo distinto do padrão do Cláudio (ex.: AD001) pra
+    nunca colidir com um código real que venha depois pelo CATALOGO.csv."""
+    maior = 0
+    linhas = conn.execute(
+        "SELECT codigo FROM produtos WHERE codigo LIKE ?", (f"{PREFIXO_PRODUTO_MANUAL}%",)
+    ).fetchall()
+    for linha in linhas:
+        resto = linha["codigo"][len(PREFIXO_PRODUTO_MANUAL):]
+        if resto.isdigit():
+            maior = max(maior, int(resto))
+    return f"{PREFIXO_PRODUTO_MANUAL}{maior + 1:03d}"
+
+
+def criar_produto_rapido(conn, nome, marca, preco_venda, codigo=None):
+    """Cadastro rápido de produto, feito direto da tela de Nova venda/Nova compra
+    quando o item não está no catálogo importado. Entra na mesma tabela `produtos`
+    usada pelo import do CATALOGO.csv — o upsert por código nunca sobrescreve um
+    produto existente aqui porque quem chama já checou que o código está livre."""
+    if not codigo:
+        codigo = gerar_codigo_produto_manual(conn)
+    produto = {
+        "codigo": codigo,
+        "id_origem": None,
+        "nome": nome.strip(),
+        "marca": (marca or "").strip() or None,
+        "tipo": None,
+        "genero": None,
+        "categoria": None,
+        "numeracao": None,
+        "preco_venda": preco_venda,
+        "preco_custo": None,
+        "linha": None,
+        "status_catalogo": "CADASTRO MANUAL (APP)",
+        "atualizado_em": hoje(),
+    }
+    upsert_produto(conn, produto)
+    conn.commit()
+    return buscar_produto(conn, codigo)
 
 
 # ---------- Vendas (todas as compras, de todos os clientes, numa lista só) ----------

@@ -4,11 +4,11 @@
 <h2>Clientes</h2>
 
 <div class="card">
-  <form method="post" action="{{ url_for('novo_cliente') }}">
+  <form method="post" action="{{ url_for('novo_cliente') }}" id="form-novo-cliente">
     <label>Nome</label>
-    <input type="text" name="nome" required style="width:260px">
+    <input type="text" name="nome" id="campo-nome-cliente" required style="width:260px">
     <label>Telefone (com DDD)</label>
-    <input type="text" name="telefone" placeholder="32988887777" style="width:200px">
+    <input type="text" name="telefone" id="campo-telefone-cliente" placeholder="(32) 98888-7777" maxlength="15" style="width:200px">
     <div style="margin-top:14px;">
       <button class="btn" type="submit">+ Cadastrar cliente</button>
     </div>
@@ -29,4 +29,19 @@
   <tr><td colspan="5">Nenhum cliente cadastrado ainda.</td></tr>
   {% endfor %}
 </table>
+
+<script>
+aplicarMascaraTelefone('campo-telefone-cliente');
+
+document.getElementById('form-novo-cliente').addEventListener('submit', async function (ev) {
+  ev.preventDefault();
+  const nome = document.getElementById('campo-nome-cliente').value;
+  const telefone = document.getElementById('campo-telefone-cliente').value;
+  const duplicados = await buscarClientesDuplicados(nome, telefone);
+  if (duplicados.length > 0 && !confirm(montarAvisoClienteDuplicado(duplicados))) {
+    return;
+  }
+  ev.target.submit();
+});
+</script>
 {% endblock %}

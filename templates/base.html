@@ -161,6 +161,146 @@ function gerarCaixinhasParcelas(idNumParcelas, idContainer) {
     container.appendChild(linha);
   }
 }
+
+// ---------- Máscara de telefone brasileira: (XX) XXXXX-XXXX (ou XXXX-XXXX se fixo) ----------
+function mascararTelefone(valorDigitado) {
+  const digitos = (valorDigitado || "").replace(/\D/g, "").slice(0, 11);
+  if (digitos.length === 0) return "";
+  if (digitos.length <= 2) return `(${digitos}`;
+  if (digitos.length <= 6) return `(${digitos.slice(0, 2)}) ${digitos.slice(2)}`;
+  if (digitos.length <= 10) return `(${digitos.slice(0, 2)}) ${digitos.slice(2, 6)}-${digitos.slice(6)}`;
+  return `(${digitos.slice(0, 2)}) ${digitos.slice(2, 7)}-${digitos.slice(7)}`;
+}
+
+function aplicarMascaraTelefone(idCampo) {
+  const campo = document.getElementById(idCampo);
+  if (!campo) return;
+  campo.addEventListener("input", () => {
+    campo.value = mascararTelefone(campo.value);
+  });
+}
+
+// ---------- Seletor de produto (datalist) com cadastro rápido, usado em
+// Nova venda e Nova compra. Recebe os ids dos elementos de cada tela. ----------
+function formatarOpcaoProduto(p) {
+  let texto = `${p.codigo} — ${p.nome}`;
+  if (p.marca) texto += ` (${p.marca})`;
+  if (p.numeracao) texto += ` — ${p.numeracao}`;
+  return texto;
+}
+
+function inicializarSeletorProduto(cfg) {
+  const campoProduto = document.getElementById(cfg.produto);
+  const lista = document.getElementById(cfg.lista);
+  const campoDescricao = document.getElementById(cfg.descricao);
+  const campoValor = document.getElementById(cfg.valor);
+  if (!campoProduto || !lista) return;
+
+  function sincronizar() {
+    const valorDigitado = campoProduto.value;
+    if (campoDescricao) campoDescricao.value = valorDigitado;
+    const opcao = Array.from(lista.options).find(o => o.value === valorDigitado);
+    if (opcao && opcao.dataset.preco && campoValor) {
+      campoValor.value = parseFloat(opcao.dataset.preco).toFixed(2).replace(".", ",");
+    }
+  }
+  campoProduto.addEventListener("input", sincronizar);
+
+  // Cadastro rápido — só liga se a tela tiver o mini-formulário (nem toda tela precisa)
+  if (!cfg.toggleNovo) return;
+  const toggle = document.getElementById(cfg.toggleNovo);
+  const formNovo = document.getElementById(cfg.formNovo);
+  const msg = document.getElementById(cfg.msgNovo);
+  const campoCodigoNovo = document.getElementById(cfg.codigoNovo);
+  const campoNomeNovo = document.getElementById(cfg.nomeNovo);
+  const campoMarcaNovo = document.getElementById(cfg.marcaNovo);
+  const campoPrecoNovo = document.getElementById(cfg.precoNovo);
+
+  toggle.addEventListener("click", () => {
+    const abrir = formNovo.style.display === "none";
+    formNovo.style.display = abrir ? "block" : "none";
+    if (msg) msg.textContent = "";
+    if (abrir) campoNomeNovo.focus();
+  });
+
+  document.getElementById(cfg.salvarNovo).addEventListener("click", async () => {
+    const nome = campoNomeNovo.value.trim();
+    if (!nome) {
+      msg.textContent = "Nome do produto é obrigatório.";
+      msg.style.color = "var(--carmim)";
+      return;
+    }
+    const corpo = new URLSearchParams({
+      codigo: campoCodigoNovo.value.trim(),
+      nome: nome,
+      marca: campoMarcaNovo.value.trim(),
+      preco_venda: campoPrecoNovo.value.trim(),
+    });
+    msg.textContent = "Cadastrando...";
+    msg.style.color = "#777";
+    try {
+      const resp = await fetch("/produtos/rapido", { method: "POST", body: corpo });
+      const dados = await resp.json();
+      if (!dados.ok) {
+        msg.textContent = dados.erro || "Não consegui cadastrar o produto.";
+        msg.style.color = "var(--carmim)";
+        return;
+      }
+      const p = dados.produto;
+      const opcao = document.createElement("option");
+      const textoOpcao = formatarOpcaoProduto(p);
+      opcao.value = textoOpcao;
+      if (p.preco_venda) opcao.dataset.preco = p.preco_venda;
+      lista.appendChild(opcao);
+      campoProduto.value = textoOpcao;
+      sincronizar();
+      campoCodigoNovo.value = "";
+      campoNomeNovo.value = "";
+      campoMarcaNovo.value = "";
+      campoPrecoNovo.value = "";
+      formNovo.style.display = "none";
+      msg.textContent = `Produto ${p.codigo} cadastrado e já selecionado.`;
+      msg.style.color = "#1F7A3E";
+    } catch (e) {
+      msg.textContent = "Erro de conexão ao cadastrar o produto.";
+      msg.style.color = "var(--carmim)";
+    }
+  });
+}
+
+// ---------- Aviso (não bloqueante) de cliente com nome ou telefone já cadastrado ----------
+async function buscarClientesDuplicados(nome, telefone) {
+  const params = new URLSearchParams({ nome: nome || "", telefone: telefone || "" });
+  try {
+    const resp = await fetch("/clientes/verificar-duplicado?" + params.toString());
+    if (!resp.ok) return [];
+    const dados = await resp.json();
+    return dados.duplicados || [];
+  } catch (e) {
+    return [];
+  }
+}
+
+function _linhaClienteDuplicado(d) {
+  const saldo = (d.saldo_total || 0).toFixed(2).replace(".", ",");
+  const ultima = d.ultima_compra || "nunca comprou";
+  return `- ${d.nome} — ${d.telefone || "sem telefone cadastrado"} — saldo em aberto: R$ ${saldo} — última compra: ${ultima}`;
+}
+
+function montarAvisoClienteDuplicado(duplicados) {
+  const fortes = duplicados.filter(d => d.gravidade === "forte");
+  const brandos = duplicados.filter(d => d.gravidade !== "forte");
+  let texto = "";
+  if (fortes.length > 0) {
+    // Telefone repetido = sinal forte de ser a mesma pessoa — aviso destacado.
+    texto += `⚠️ TELEFONE JÁ CADASTRADO — provavelmente a mesma pessoa:\n${fortes.map(_linhaClienteDuplicado).join("\n")}\n\n`;
+  }
+  if (brandos.length > 0) {
+    texto += `Nome igual ou parecido já cadastrado (pode ser coincidência):\n${brandos.map(_linhaClienteDuplicado).join("\n")}\n\n`;
+  }
+  texto += "Continuar mesmo assim e cadastrar de novo?";
+  return texto;
+}
 </script>
 </body>
 </html>

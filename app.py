@@ -124,13 +124,28 @@ def novo_cliente():
     return redirect(url_for("cliente_detalhe", cliente_id=cliente_id))
 
 
+@app.route("/clientes/verificar-duplicado")
+def verificar_cliente_duplicado():
+    """Usado via fetch pela tela de cadastro de cliente, pra avisar (sem bloquear)
+    se já existe alguém com o mesmo nome ou telefone antes do Thiago confirmar."""
+    nome = request.args.get("nome", "").strip()
+    telefone = request.args.get("telefone", "").strip()
+    if not nome and not telefone:
+        return {"duplicados": []}
+    conn = db.get_conn()
+    duplicados = db.buscar_clientes_duplicados(conn, nome, telefone)
+    conn.close()
+    return {"duplicados": duplicados}
+
+
 @app.route("/clientes/<int:cliente_id>")
 def cliente_detalhe(cliente_id):
     conn = db.get_conn()
     cliente = db.buscar_cliente(conn, cliente_id)
     compras = db.listar_compras_cliente(conn, cliente_id)
+    produtos = db.listar_produtos(conn)
     conn.close()
-    return render_template("cliente_detalhe.html", cliente=cliente, compras=compras)
+    return render_template("cliente_detalhe.html", cliente=cliente, compras=compras, produtos=produtos)
 
 
 # ---------- Compras ----------
@@ -150,6 +165,10 @@ def nova_compra(cliente_id):
 def compra_detalhe(compra_id):
     conn = db.get_conn()
     compra = db.buscar_compra(conn, compra_id)
+    if not compra:
+        conn.close()
+        flash("Essa compra não existe mais — pode ter sido excluída.", "erro")
+        return redirect(url_for("vendas"))
     cliente = db.buscar_cliente(conn, compra["cliente_id"])
     saldo, pago = db.saldo_compra(conn, compra)
     parcelas = db.parcelas_compra(conn, compra_id)
@@ -172,14 +191,47 @@ def compra_detalhe(compra_id):
 def editar_compra(compra_id):
     conn = db.get_conn()
     compra = db.buscar_compra(conn, compra_id)
+    if not compra:
+        conn.close()
+        flash("Essa compra não existe mais — pode ter sido excluída.", "erro")
+        return redirect(url_for("vendas"))
     if request.method == "POST":
         novo_valor = float(request.form.get("valor_total", "0").replace(",", "."))
-        db.editar_valor_compra(conn, compra_id, novo_valor)
+        nova_descricao = request.form.get("descricao", "").strip()
+        if not nova_descricao:
+            conn.close()
+            flash("Descrição do produto é obrigatória.", "erro")
+            return redirect(url_for("editar_compra", compra_id=compra_id))
+        db.editar_compra(conn, compra_id, novo_valor, nova_descricao)
         conn.close()
-        flash("Valor da compra atualizado — o saldo já recalculou sozinho.", "ok")
+        flash("Compra atualizada — o saldo já recalculou sozinho.", "ok")
         return redirect(url_for("compra_detalhe", compra_id=compra_id))
+    produtos = db.listar_produtos(conn)
     conn.close()
-    return render_template("editar_compra.html", compra=compra)
+    return render_template("editar_compra.html", compra=compra, produtos=produtos)
+
+
+@app.route("/compras/<int:compra_id>/excluir", methods=["POST"])
+def excluir_compra(compra_id):
+    """Só permite excluir a compra se ela ainda não tiver nenhum pagamento registrado
+    — se já tiver, o Thiago precisa estornar o(s) pagamento(s) primeiro (fluxo que já
+    existe em cada pagamento). Exclui junto parcelas e histórico, sem deixar órfão."""
+    conn = db.get_conn()
+    compra = db.buscar_compra(conn, compra_id)
+    if not compra:
+        conn.close()
+        flash("Compra não encontrada.", "erro")
+        return redirect(url_for("vendas"))
+    cliente_id = compra["cliente_id"]
+    _, pago = db.saldo_compra(conn, compra)
+    if pago > 0:
+        conn.close()
+        flash("Essa compra já tem pagamento registrado — estorne o(s) pagamento(s) primeiro pra poder excluir.", "erro")
+        return redirect(url_for("compra_detalhe", compra_id=compra_id))
+    db.excluir_compra(conn, compra_id)
+    conn.close()
+    flash("Compra excluída.", "ok")
+    return redirect(url_for("cliente_detalhe", cliente_id=cliente_id))
 
 
 # ---------- Pagamentos (baixa) ----------
@@ -328,6 +380,36 @@ def importar_produtos_upload():
     resultado = importar_catalogo.processar_conteudo(texto)
     flash(f"{resultado['total']} produtos importados/atualizados do arquivo enviado.", "ok")
     return redirect(url_for("produtos"))
+
+
+@app.route("/produtos/rapido", methods=["POST"])
+def cadastrar_produto_rapido():
+    """Cadastro rápido de produto direto da tela de Nova venda/Nova compra, via fetch —
+    devolve JSON pro JS colocar o produto no datalist na hora, sem sair do fluxo de
+    lançar a venda/compra. Não mexe no CATALOGO.csv — só entra na tabela `produtos`."""
+    nome = request.form.get("nome", "").strip()
+    marca = request.form.get("marca", "").strip()
+    codigo = request.form.get("codigo", "").strip().upper()
+    preco_raw = request.form.get("preco_venda", "").strip()
+
+    if not nome:
+        return {"ok": False, "erro": "Nome do produto é obrigatório."}, 400
+
+    preco_venda = None
+    if preco_raw:
+        try:
+            preco_venda = float(preco_raw.replace(",", "."))
+        except ValueError:
+            return {"ok": False, "erro": "Preço inválido."}, 400
+
+    conn = db.get_conn()
+    if codigo and db.buscar_produto(conn, codigo):
+        conn.close()
+        return {"ok": False, "erro": f"Já existe um produto com o código {codigo}."}, 400
+
+    produto = db.criar_produto_rapido(conn, nome, marca, preco_venda, codigo or None)
+    conn.close()
+    return {"ok": True, "produto": dict(produto)}
 
 
 @app.route("/produtos/<codigo>/custo", methods=["POST"])

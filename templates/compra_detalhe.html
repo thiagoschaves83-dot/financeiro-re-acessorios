@@ -10,10 +10,20 @@
     &nbsp;·&nbsp; Pago: <strong>R$ {{ "%.2f"|format(pago) }}</strong>
     &nbsp;·&nbsp; Saldo: <strong class="{{ 'saldo-zero' if saldo <= 0 else 'atraso' }}">R$ {{ "%.2f"|format(saldo) }}</strong>
   </p>
-  <a class="btn btn-secundario" href="{{ url_for('editar_compra', compra_id=compra.id) }}">✏️ Editar valor da compra</a>
+  <a class="btn btn-secundario" href="{{ url_for('editar_compra', compra_id=compra.id) }}">✏️ Editar compra</a>
   <p style="font-size:0.82rem; color:#888; margin-top:8px;">
-    Pode editar a qualquer momento, mesmo com pagamento já lançado — o saldo recalcula sozinho.
+    Pode editar produto e valor a qualquer momento, mesmo com pagamento já lançado — o saldo recalcula sozinho.
   </p>
+  {% if pago == 0 %}
+  <form class="inline" method="post" action="{{ url_for('excluir_compra', compra_id=compra.id) }}"
+        onsubmit="return confirm('Excluir esta compra? Essa ação não tem desfazer.');" style="margin-top:6px; display:inline-block;">
+    <button type="submit" class="btn" style="background:var(--carmim-escuro);">🗑️ Excluir compra</button>
+  </form>
+  {% else %}
+  <p style="font-size:0.82rem; color:#888; margin-top:6px;">
+    Essa compra já tem pagamento registrado, então não dá pra excluir direto — estorne o(s) pagamento(s) abaixo primeiro.
+  </p>
+  {% endif %}
 </div>
 
 {% if parcelas %}

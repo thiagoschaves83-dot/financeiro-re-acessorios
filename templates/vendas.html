@@ -18,7 +18,7 @@
     </datalist>
 
     <label>Telefone (só usado se for cliente novo)</label>
-    <input type="text" name="telefone" placeholder="32988887777" style="width:200px">
+    <input type="text" name="telefone" id="campo-telefone-venda" placeholder="(32) 98888-7777" maxlength="15" style="width:200px">
 
     <label>Produto comprado</label>
     <input type="text" id="campo-produto" list="lista-produtos" style="width:400px" placeholder="Busque por nome, código ou marca do catálogo, ou digite livre">
@@ -28,6 +28,23 @@
       {% endfor %}
     </datalist>
     <input type="hidden" name="descricao" id="campo-descricao" required>
+    <div style="margin:4px 0 0;">
+      <button type="button" id="btn-toggle-produto-novo-venda" class="btn btn-secundario" style="font-size:0.8rem; padding:5px 10px;">Não achei o produto — cadastrar novo</button>
+    </div>
+    <div id="form-produto-novo-venda" style="display:none; background:var(--fundo); border-radius:8px; padding:12px; margin-top:8px;">
+      <label>Código (opcional — se deixar em branco, geramos um)</label>
+      <input type="text" id="produto-novo-codigo-venda" style="width:160px" placeholder="ex.: AD010">
+      <label>Nome do produto</label>
+      <input type="text" id="produto-novo-nome-venda" style="width:300px" required>
+      <label>Marca</label>
+      <input type="text" id="produto-novo-marca-venda" style="width:200px">
+      <label>Preço de venda (R$)</label>
+      <input type="text" id="produto-novo-preco-venda" style="width:120px" placeholder="300,00">
+      <div style="margin-top:10px;">
+        <button type="button" class="btn" id="btn-salvar-produto-novo-venda">Salvar produto</button>
+        <span id="msg-produto-novo-venda" style="font-size:0.85rem; margin-left:10px;"></span>
+      </div>
+    </div>
 
     <label>Valor da venda (R$) — vem do produto selecionado, mas pode editar</label>
     <input type="text" name="valor_total" id="campo-valor" required placeholder="300,00" style="width:120px">
@@ -71,21 +88,24 @@ function toggleFormVenda() {
   document.getElementById('btn-toggle-venda').textContent = aberto ? '+ Nova venda' : '× Fechar';
 }
 
-// Produto selecionado no datalist preenche descrição (texto real) e sugere o valor —
-// mas o campo de valor continua editável na mão, como pedido.
-const campoProduto = document.getElementById('campo-produto');
-const listaProdutos = document.getElementById('lista-produtos');
-const campoDescricao = document.getElementById('campo-descricao');
-const campoValor = document.getElementById('campo-valor');
+aplicarMascaraTelefone('campo-telefone-venda');
 
-function sincronizarProduto() {
-  const valorDigitado = campoProduto.value;
-  campoDescricao.value = valorDigitado;
-  const opcao = Array.from(listaProdutos.options).find(o => o.value === valorDigitado);
-  if (opcao && opcao.dataset.preco) {
-    campoValor.value = parseFloat(opcao.dataset.preco).toFixed(2).replace('.', ',');
-  }
-}
-campoProduto.addEventListener('input', sincronizarProduto);
+// Produto selecionado no datalist preenche descrição (texto real) e sugere o valor —
+// mas o campo de valor continua editável na mão, como pedido. Mesma função é usada
+// na tela de "Nova compra" de cada cliente (cliente_detalhe.html).
+inicializarSeletorProduto({
+  produto: 'campo-produto',
+  lista: 'lista-produtos',
+  descricao: 'campo-descricao',
+  valor: 'campo-valor',
+  toggleNovo: 'btn-toggle-produto-novo-venda',
+  formNovo: 'form-produto-novo-venda',
+  codigoNovo: 'produto-novo-codigo-venda',
+  nomeNovo: 'produto-novo-nome-venda',
+  marcaNovo: 'produto-novo-marca-venda',
+  precoNovo: 'produto-novo-preco-venda',
+  salvarNovo: 'btn-salvar-produto-novo-venda',
+  msgNovo: 'msg-produto-novo-venda',
+});
 </script>
 {% endblock %}

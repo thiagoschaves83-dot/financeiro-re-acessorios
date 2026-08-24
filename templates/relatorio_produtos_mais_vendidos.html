@@ -1,0 +1,21 @@
+{% extends "base.html" %}
+{% block titulo %}Produtos mais vendidos — Financeiro{% endblock %}
+{% block conteudo %}
+<p><a href="{{ url_for('relatorios') }}">← Relatórios</a></p>
+<h2>Produtos mais vendidos</h2>
+<p style="color:#777; font-size:0.9rem;">Ranking pela descrição lançada em cada venda. Vendas com vários produtos juntos na mesma descrição (ex.: "Tênis A; Tênis B") contam como uma linha só.</p>
+<p><a class="btn" href="{{ url_for('relatorio_produtos_mais_vendidos_csv') }}">⬇️ Exportar CSV</a></p>
+
+<table>
+  <tr><th>Descrição</th><th>Qtd. vendida</th><th>Total vendido</th></tr>
+  {% for d in dados %}
+  <tr>
+    <td>{{ d.descricao }}</td>
+    <td>{{ d.qtd }}</td>
+    <td>R$ {{ "%.2f"|format(d.total_vendido) }}</td>
+  </tr>
+  {% else %}
+  <tr><td colspan="3">Nenhuma venda registrada ainda.</td></tr>
+  {% endfor %}
+</table>
+{% endblock %}

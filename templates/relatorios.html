@@ -28,6 +28,14 @@
 </div>
 
 <div class="card">
+  <strong>Produtos mais vendidos</strong> — ranking por quantidade e valor total vendido.
+  <div style="margin-top:10px;">
+    <a class="btn btn-secundario" href="{{ url_for('relatorio_produtos_mais_vendidos') }}">Ver na tela</a>
+    <a class="btn" href="{{ url_for('relatorio_produtos_mais_vendidos_csv') }}">⬇️ Exportar CSV</a>
+  </div>
+</div>
+
+<div class="card">
   <strong>Clientes atrasados</strong> — quem tem parcela vencida ainda não coberta pelo total pago.
   <div style="margin-top:10px;">
     <a class="btn btn-secundario" href="{{ url_for('relatorio_clientes_atrasados') }}">Ver na tela</a>

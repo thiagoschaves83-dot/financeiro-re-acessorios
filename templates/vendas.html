@@ -3,6 +3,14 @@
 {% block conteudo %}
 <h2>Vendas</h2>
 
+<div class="card" style="display:flex; gap:8px; align-items:center; flex-wrap:wrap;">
+  <form method="get" style="display:flex; gap:8px;">
+    <input type="text" name="q" value="{{ busca }}" placeholder="Buscar por cliente ou produto (sem precisar de acento)" style="width:320px">
+    <button class="btn btn-secundario" type="submit">Buscar</button>
+    {% if busca %}<a class="btn btn-secundario" href="{{ url_for('vendas') }}">Limpar</a>{% endif %}
+  </form>
+</div>
+
 <div class="card">
   <div style="display:flex; justify-content:space-between; align-items:center;">
     <strong id="titulo-form-venda">Nova venda</strong>
@@ -72,7 +80,7 @@
     <td><a href="{{ url_for('compra_detalhe', compra_id=v.id) }}">ver →</a></td>
   </tr>
   {% else %}
-  <tr><td colspan="7">Nenhuma venda registrada ainda.</td></tr>
+  <tr><td colspan="7">{% if busca %}Nenhuma venda encontrada pra "{{ busca }}".{% else %}Nenhuma venda registrada ainda.{% endif %}</td></tr>
   {% endfor %}
 </table>
 

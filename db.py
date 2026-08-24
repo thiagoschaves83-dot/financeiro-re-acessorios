@@ -287,6 +287,32 @@ def editar_compra(conn, compra_id, novo_valor, nova_descricao):
     conn.commit()
 
 
+def editar_parcela(conn, parcela_id, novo_vencimento, novo_valor_previsto):
+    """Corrige a data de vencimento e/ou valor previsto de uma parcela ainda não paga
+    (ex.: Thiago combinou um novo prazo com o cliente). Registra no histórico da compra,
+    igual às outras edições — nunca bloqueia."""
+    parcela = conn.execute("SELECT * FROM parcelas WHERE id = ?", (parcela_id,)).fetchone()
+    if not parcela:
+        return
+    mudancas = []
+    if parcela["vencimento"] != novo_vencimento:
+        mudancas.append(("parcela_vencimento", parcela["vencimento"], novo_vencimento))
+    if str(parcela["valor_previsto"]) != str(novo_valor_previsto):
+        mudancas.append(("parcela_valor_previsto", parcela["valor_previsto"], novo_valor_previsto))
+    if not mudancas:
+        return
+    conn.execute(
+        "UPDATE parcelas SET vencimento = ?, valor_previsto = ? WHERE id = ?",
+        (novo_vencimento, novo_valor_previsto, parcela_id),
+    )
+    for campo, antigo, novo in mudancas:
+        conn.execute(
+            "INSERT INTO historico_edicoes (compra_id, campo, valor_antigo, valor_novo, data) VALUES (?, ?, ?, ?, ?)",
+            (parcela["compra_id"], campo, str(antigo), str(novo), hoje()),
+        )
+    conn.commit()
+
+
 def excluir_compra(conn, compra_id):
     """Exclui a compra inteira e tudo que pertence só a ela (parcelas, histórico de
     edição, e qualquer pagamento remanescente). Quem chama já garantiu que não tem
@@ -566,6 +592,26 @@ def clientes_sem_compra(conn, dias):
             lista.append({**dict(cliente), "ultima_compra": ultima})
     lista.sort(key=lambda x: x["ultima_compra"] or "")
     return lista
+
+
+def produtos_mais_vendidos(conn):
+    """Ranking por descrição de produto (texto da própria compra) — quantas vezes
+    foi vendido e quanto rendeu no total. Compras com vários itens juntos na mesma
+    descrição (ex.: "Tênis A; Tênis B") contam como uma linha só, já que a compra
+    não guarda item por item, só a descrição livre digitada na hora da venda."""
+    linhas = conn.execute("SELECT descricao, valor_total FROM compras").fetchall()
+    agregados = {}
+    for l in linhas:
+        chave = _normalizar_texto(l["descricao"])
+        if chave not in agregados:
+            agregados[chave] = {"descricao": l["descricao"], "qtd": 0, "total_vendido": 0.0}
+        agregados[chave]["qtd"] += 1
+        agregados[chave]["total_vendido"] += l["valor_total"]
+    resultado = list(agregados.values())
+    for r in resultado:
+        r["total_vendido"] = round(r["total_vendido"], 2)
+    resultado.sort(key=lambda r: (-r["qtd"], -r["total_vendido"]))
+    return resultado
 
 
 # ---------- Dashboard ----------

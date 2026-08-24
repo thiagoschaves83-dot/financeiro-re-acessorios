@@ -35,7 +35,22 @@
       O saldo (o que ainda falta receber) recalcula sozinho a partir dos pagamentos já registrados.
       Essa mudança fica registrada no histórico da compra.
     </p>
-    <button class="btn" type="submit">Salvar</button>
+
+    {% if parcelas %}
+    <label style="margin-top:14px; display:block;">Datas de vencimento das parcelas</label>
+    <table style="width:auto;">
+      <tr><th>Nº</th><th>Vencimento</th><th>Valor previsto (R$)</th></tr>
+      {% for p in parcelas %}
+      <tr>
+        <td>{{ p.numero }}</td>
+        <td><input type="date" name="parcela_vencimento_{{ p.id }}" value="{{ p.vencimento }}"></td>
+        <td><input type="text" name="parcela_valor_{{ p.id }}" value="{{ "%.2f"|format(p.valor_previsto) }}" style="width:100px"></td>
+      </tr>
+      {% endfor %}
+    </table>
+    {% endif %}
+
+    <button class="btn" type="submit" style="margin-top:14px;">Salvar</button>
   </form>
 </div>
 

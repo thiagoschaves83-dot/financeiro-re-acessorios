@@ -231,12 +231,19 @@ def editar_compra(compra_id):
             flash("Descrição do produto é obrigatória.", "erro")
             return redirect(url_for("editar_compra", compra_id=compra_id))
         db.editar_compra(conn, compra_id, novo_valor, nova_descricao)
+        for parcela in db.parcelas_compra(conn, compra_id):
+            novo_vencimento = request.form.get(f"parcela_vencimento_{parcela['id']}")
+            novo_valor_previsto_raw = request.form.get(f"parcela_valor_{parcela['id']}")
+            if novo_vencimento and novo_valor_previsto_raw:
+                novo_valor_previsto = float(novo_valor_previsto_raw.replace(",", "."))
+                db.editar_parcela(conn, parcela["id"], novo_vencimento, novo_valor_previsto)
         conn.close()
         flash("Compra atualizada — o saldo já recalculou sozinho.", "ok")
         return redirect(url_for("compra_detalhe", compra_id=compra_id))
     produtos = db.listar_produtos(conn)
+    parcelas = db.parcelas_compra(conn, compra_id)
     conn.close()
-    return render_template("editar_compra.html", compra=compra, produtos=produtos)
+    return render_template("editar_compra.html", compra=compra, produtos=produtos, parcelas=parcelas)
 
 
 @app.route("/compras/<int:compra_id>/excluir", methods=["POST"])
@@ -331,11 +338,18 @@ def comprovante(compra_id, pagamento_id):
 @app.route("/vendas")
 def vendas():
     conn = db.get_conn()
+    busca = request.args.get("q", "").strip() or None
     lista = db.listar_vendas(conn)
+    if busca:
+        termo = db._normalizar_texto(busca)
+        lista = [
+            v for v in lista
+            if termo in db._normalizar_texto(v["cliente_nome"]) or termo in db._normalizar_texto(v["descricao"])
+        ]
     clientes_nomes = [c["nome"] for c in db.listar_clientes(conn)]
     produtos = db.listar_produtos(conn)
     conn.close()
-    return render_template("vendas.html", vendas=lista, clientes_nomes=clientes_nomes, produtos=produtos)
+    return render_template("vendas.html", vendas=lista, clientes_nomes=clientes_nomes, produtos=produtos, busca=busca or "")
 
 
 @app.route("/vendas/nova", methods=["POST"])
@@ -515,6 +529,22 @@ def relatorio_clientes_atrasados():
     dados = db.clientes_atrasados(conn)
     conn.close()
     return render_template("relatorio_clientes_atrasados.html", dados=dados)
+
+
+@app.route("/relatorios/produtos-mais-vendidos")
+def relatorio_produtos_mais_vendidos():
+    conn = db.get_conn()
+    dados = db.produtos_mais_vendidos(conn)
+    conn.close()
+    return render_template("relatorio_produtos_mais_vendidos.html", dados=dados)
+
+
+@app.route("/relatorios/produtos-mais-vendidos.csv")
+def relatorio_produtos_mais_vendidos_csv():
+    conn = db.get_conn()
+    linhas = [[d["descricao"], d["qtd"], d["total_vendido"]] for d in db.produtos_mais_vendidos(conn)]
+    conn.close()
+    return _csv_response("produtos_mais_vendidos.csv", ["Descrição", "Qtd. vendida", "Total vendido"], linhas)
 
 
 @app.route("/relatorios/clientes-atrasados.csv")

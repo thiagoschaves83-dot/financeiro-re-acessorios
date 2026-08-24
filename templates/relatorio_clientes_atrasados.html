@@ -9,7 +9,7 @@
 <table>
   <tr><th>Cliente</th><th>Telefone</th><th>Compras em atraso</th><th>Total atrasado</th><th></th></tr>
   {% for d in dados %}
-  <tr>
+  <tr ondblclick="window.location='{{ url_for('cliente_detalhe', cliente_id=d.id) }}'" style="cursor:pointer" title="Clique duas vezes pra abrir o cliente">
     <td>{{ d.nome }}</td>
     <td>{{ d.telefone or "—" }}</td>
     <td>{{ d.num_compras }}</td>

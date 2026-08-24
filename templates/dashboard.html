@@ -3,19 +3,19 @@
 {% block conteudo %}
 <h2>Painel</h2>
 <div class="grid-resumo">
-  <div class="stat">
+  <div class="stat" ondblclick="window.location='{{ url_for('relatorio_clientes_em_aberto') }}'" style="cursor:pointer" title="Clique duas vezes pra ver o relatório">
     <div class="valor">R$ {{ "%.2f"|format(resumo.total_receber) }}</div>
     <div class="rotulo">Total a receber</div>
   </div>
-  <div class="stat">
+  <div class="stat" ondblclick="window.location='{{ url_for('relatorio_clientes_atrasados') }}'" style="cursor:pointer" title="Clique duas vezes pra ver o relatório">
     <div class="valor" style="color:#C2293C">R$ {{ "%.2f"|format(resumo.total_atraso) }}</div>
     <div class="rotulo">Em atraso</div>
   </div>
-  <div class="stat">
+  <div class="stat" ondblclick="window.location='{{ url_for('relatorio_clientes_em_aberto') }}'" style="cursor:pointer" title="Clique duas vezes pra ver o relatório">
     <div class="valor">R$ {{ "%.2f"|format(resumo.total_a_vencer) }}</div>
     <div class="rotulo">A vencer</div>
   </div>
-  <div class="stat">
+  <div class="stat" ondblclick="window.location='{{ url_for('clientes') }}'" style="cursor:pointer" title="Clique duas vezes pra ver os clientes">
     <div class="valor">{{ total_clientes }}</div>
     <div class="rotulo">Clientes cadastrados</div>
   </div>

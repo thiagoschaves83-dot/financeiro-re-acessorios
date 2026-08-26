@@ -26,37 +26,22 @@
     <label>Telefone (só usado se for cliente novo)</label>
     <input type="text" name="telefone" id="campo-telefone-venda" placeholder="(32) 98888-7777" maxlength="15" style="width:200px">
 
-    <label>Produto comprado</label>
-    <div class="campo-autocomplete" style="width:400px;">
-      <input type="text" id="campo-produto" autocomplete="off" style="width:400px" placeholder="Busque por nome, código ou marca do catálogo (sem acento já acha), ou digite livre">
-      <div class="autocomplete-dropdown" id="dropdown-produto-venda"></div>
-    </div>
+    <label>Produtos comprados</label>
+    <div id="itens-produto-venda"></div>
+    <button type="button" id="btn-add-item-venda" class="btn btn-secundario" style="font-size:0.8rem; padding:5px 10px; margin-top:4px;">+ Adicionar outro produto</button>
     <input type="hidden" name="descricao" id="campo-descricao" required>
-    <div style="margin:4px 0 0;">
-      <button type="button" id="btn-toggle-produto-novo-venda" class="btn btn-secundario" style="font-size:0.8rem; padding:5px 10px;">Não achei o produto — cadastrar novo</button>
-    </div>
-    <div id="form-produto-novo-venda" style="display:none; background:var(--fundo); border-radius:8px; padding:12px; margin-top:8px;">
-      <label>Código (opcional — se deixar em branco, geramos um)</label>
-      <input type="text" id="produto-novo-codigo-venda" style="width:160px" placeholder="ex.: AD010">
-      <label>Nome do produto</label>
-      <input type="text" id="produto-novo-nome-venda" style="width:300px">
-      <label>Marca</label>
-      <input type="text" id="produto-novo-marca-venda" style="width:200px">
-      <label>Preço de venda (R$)</label>
-      <input type="text" id="produto-novo-preco-venda" style="width:120px" placeholder="300,00">
-      <div style="margin-top:10px;">
-        <button type="button" class="btn" id="btn-salvar-produto-novo-venda">Salvar produto</button>
-        <span id="msg-produto-novo-venda" style="font-size:0.85rem; margin-left:10px;"></span>
-      </div>
-    </div>
 
-    <label>Valor da venda (R$) — vem do produto selecionado, mas pode editar</label>
+    <label>Valor total (R$) — soma dos produtos acima, mas pode editar</label>
     <input type="text" name="valor_total" id="campo-valor" required placeholder="300,00" style="width:120px"
-           oninput="atualizarValoresParcelas('caixinhas-parcelas-venda', 'campo-valor')">
+           oninput="atualizarValoresParcelas('caixinhas-parcelas-venda', 'campo-valor', 'campo-entrada-venda')">
+
+    <label>Entrada (R$) — já pago na hora; o resto divide nas parcelas (deixe em branco se não tiver)</label>
+    <input type="text" name="entrada" id="campo-entrada-venda" placeholder="0,00" style="width:120px"
+           oninput="atualizarValoresParcelas('caixinhas-parcelas-venda', 'campo-valor', 'campo-entrada-venda')">
 
     <label>Condição de pagamento — número de parcelas (0 = à vista)</label>
     <input type="number" id="num-parcelas-venda" value="0" min="0" style="width:80px"
-           oninput="gerarCaixinhasParcelas('num-parcelas-venda', 'caixinhas-parcelas-venda', 'campo-valor')">
+           oninput="gerarCaixinhasParcelas('num-parcelas-venda', 'caixinhas-parcelas-venda', 'campo-valor', 'campo-entrada-venda')">
 
     <div id="caixinhas-parcelas-venda" style="display:flex; flex-direction:column; gap:10px; margin-top:6px;"></div>
 
@@ -117,23 +102,14 @@ configurarAutocomplete({
   textoItem: nome => nome,
 });
 
-// Produto selecionado no autocomplete preenche descrição (texto real) e sugere o
-// valor — mas o campo de valor continua editável na mão, como pedido. Mesma
-// função é usada na tela de "Nova compra" de cada cliente e em "Editar compra".
-inicializarSeletorProduto({
-  produto: 'campo-produto',
-  dropdown: 'dropdown-produto-venda',
+// Um ou mais produtos na mesma venda — cada um com seu autocomplete e valor;
+// o total e a descrição final somam/juntam tudo sozinhos (ver base.html).
+inicializarMultiProduto({
+  containerItens: 'itens-produto-venda',
+  btnAdicionar: 'btn-add-item-venda',
   itens: PRODUTOS_VENDA,
-  descricao: 'campo-descricao',
-  valor: 'campo-valor',
-  toggleNovo: 'btn-toggle-produto-novo-venda',
-  formNovo: 'form-produto-novo-venda',
-  codigoNovo: 'produto-novo-codigo-venda',
-  nomeNovo: 'produto-novo-nome-venda',
-  marcaNovo: 'produto-novo-marca-venda',
-  precoNovo: 'produto-novo-preco-venda',
-  salvarNovo: 'btn-salvar-produto-novo-venda',
-  msgNovo: 'msg-produto-novo-venda',
+  idDescricaoFinal: 'campo-descricao',
+  idValorFinal: 'campo-valor',
 });
 </script>
 {% endblock %}

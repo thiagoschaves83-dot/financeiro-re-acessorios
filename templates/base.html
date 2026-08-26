@@ -153,20 +153,117 @@ function _valorParaNumero(texto) {
   return parseFloat((texto || "0").replace(",", ".")) || 0;
 }
 
-// Mostra quanto cada parcela vai valer (valor total dividido em partes iguais) —
-// só informativo, o valor de verdade continua sendo calculado do mesmo jeito no
-// servidor quando a compra é salva. Chama de novo sempre que o valor total muda.
-function atualizarValoresParcelas(idContainer, idValorTotal) {
+// Mostra quanto cada parcela vai valer — o total menos a entrada (se tiver),
+// dividido em partes iguais entre as parcelas restantes. Só informativo, o valor
+// de verdade é calculado do mesmo jeito no servidor quando a compra é salva.
+// Chama de novo sempre que o valor total ou a entrada mudam.
+function atualizarValoresParcelas(idContainer, idValorTotal, idEntrada) {
   const container = document.getElementById(idContainer);
   if (!container) return;
   const linhas = container.querySelectorAll(".linha-parcela");
   if (linhas.length === 0) return;
   const total = _valorParaNumero(document.getElementById(idValorTotal).value);
-  const valorCada = total / linhas.length;
+  const entrada = idEntrada && document.getElementById(idEntrada) ? _valorParaNumero(document.getElementById(idEntrada).value) : 0;
+  const restante = Math.max(0, total - entrada);
+  const valorCada = restante / linhas.length;
   linhas.forEach(linha => {
     const span = linha.querySelector(".valor-parcela-info");
     if (span) span.textContent = `R$ ${valorCada.toFixed(2).replace(".", ",")} por parcela`;
   });
+}
+
+// ---------- Vários produtos numa mesma venda/compra — cada um com seu próprio
+// autocomplete e valor; o total e a descrição final somam/juntam tudo sozinhos. ----------
+let _contadorItemProduto = 0;
+
+function _criarBlocoItemProduto(container, itens, aoMudar) {
+  const id = ++_contadorItemProduto;
+  const bloco = document.createElement("div");
+  bloco.className = "bloco-item-produto";
+  bloco.style.cssText = "margin-bottom:10px; padding-bottom:10px; border-bottom:1px dashed var(--cinza);";
+  bloco.innerHTML = `
+    <div class="campo-autocomplete" style="width:400px;">
+      <input type="text" id="item-produto-${id}" autocomplete="off" style="width:400px" placeholder="Busque por nome, código ou marca do catálogo (sem acento já acha), ou digite livre">
+      <div class="autocomplete-dropdown" id="item-dropdown-${id}"></div>
+    </div>
+    <input type="hidden" id="item-descricao-${id}" data-papel="descricao">
+    <div style="margin:4px 0 0;">
+      <button type="button" id="item-toggle-novo-${id}" class="btn btn-secundario" style="font-size:0.8rem; padding:5px 10px;">Não achei o produto — cadastrar novo</button>
+    </div>
+    <div id="item-form-novo-${id}" style="display:none; background:var(--branco); border-radius:8px; padding:12px; margin-top:8px;">
+      <label>Código (opcional — se deixar em branco, geramos um)</label>
+      <input type="text" id="item-codigo-novo-${id}" style="width:160px" placeholder="ex.: AD010">
+      <label>Nome do produto</label>
+      <input type="text" id="item-nome-novo-${id}" style="width:300px">
+      <label>Marca</label>
+      <input type="text" id="item-marca-novo-${id}" style="width:200px">
+      <label>Preço de venda (R$)</label>
+      <input type="text" id="item-preco-novo-${id}" style="width:120px" placeholder="300,00">
+      <div style="margin-top:10px;">
+        <button type="button" class="btn" id="item-salvar-novo-${id}">Salvar produto</button>
+        <span id="item-msg-novo-${id}" style="font-size:0.85rem; margin-left:10px;"></span>
+      </div>
+    </div>
+    <label>Valor deste produto (R$)</label>
+    <input type="text" id="item-valor-${id}" data-papel="valor" placeholder="300,00" style="width:120px">
+    <button type="button" id="item-remover-${id}" style="margin-left:10px; background:none; border:none; color:var(--carmim); cursor:pointer; font-size:0.85rem;">✕ remover produto</button>
+  `;
+  container.appendChild(bloco); // precisa estar na página antes de buscar os ids por dentro
+
+  inicializarSeletorProduto({
+    produto: `item-produto-${id}`,
+    dropdown: `item-dropdown-${id}`,
+    itens: itens,
+    descricao: `item-descricao-${id}`,
+    valor: `item-valor-${id}`,
+    toggleNovo: `item-toggle-novo-${id}`,
+    formNovo: `item-form-novo-${id}`,
+    codigoNovo: `item-codigo-novo-${id}`,
+    nomeNovo: `item-nome-novo-${id}`,
+    marcaNovo: `item-marca-novo-${id}`,
+    precoNovo: `item-preco-novo-${id}`,
+    salvarNovo: `item-salvar-novo-${id}`,
+    msgNovo: `item-msg-novo-${id}`,
+  });
+
+  document.getElementById(`item-produto-${id}`).addEventListener("input", aoMudar);
+  document.getElementById(`item-valor-${id}`).addEventListener("input", aoMudar);
+  bloco.querySelector(`#item-remover-${id}`).addEventListener("click", () => {
+    bloco.remove();
+    aoMudar();
+  });
+
+  return bloco;
+}
+
+// cfg = { containerItens, btnAdicionar, itens, idDescricaoFinal, idValorFinal }
+function inicializarMultiProduto(cfg) {
+  const container = document.getElementById(cfg.containerItens);
+
+  function recalcular() {
+    let soma = 0;
+    const partes = [];
+    container.querySelectorAll(".bloco-item-produto").forEach(bloco => {
+      const desc = bloco.querySelector('[data-papel="descricao"]');
+      const valor = bloco.querySelector('[data-papel="valor"]');
+      if (desc && desc.value.trim()) {
+        partes.push(desc.value.trim());
+        soma += _valorParaNumero(valor.value);
+      }
+    });
+    const campoValorFinal = document.getElementById(cfg.idValorFinal);
+    const campoDescricaoFinal = document.getElementById(cfg.idDescricaoFinal);
+    campoValorFinal.value = soma > 0 ? soma.toFixed(2).replace(".", ",") : "";
+    campoDescricaoFinal.value = partes.join("; ");
+    campoValorFinal.dispatchEvent(new Event("input", { bubbles: true }));
+  }
+
+  function adicionarItem() {
+    _criarBlocoItemProduto(container, cfg.itens, recalcular);
+  }
+
+  document.getElementById(cfg.btnAdicionar).addEventListener("click", adicionarItem);
+  adicionarItem();
 }
 
 // Quando o Thiago muda a data de uma parcela, as parcelas seguintes (as "de baixo")
@@ -185,7 +282,7 @@ function _cascatearDatasParcelas(idContainer, indiceAlterado) {
   }
 }
 
-function gerarCaixinhasParcelas(idNumParcelas, idContainer, idValorTotal) {
+function gerarCaixinhasParcelas(idNumParcelas, idContainer, idValorTotal, idEntrada) {
   const numParcelas = parseInt(document.getElementById(idNumParcelas).value) || 0;
   const container = document.getElementById(idContainer);
   container.innerHTML = "";
@@ -219,7 +316,7 @@ function gerarCaixinhasParcelas(idNumParcelas, idContainer, idValorTotal) {
     linha.appendChild(span);
     container.appendChild(linha);
   }
-  if (idValorTotal) atualizarValoresParcelas(idContainer, idValorTotal);
+  if (idValorTotal) atualizarValoresParcelas(idContainer, idValorTotal, idEntrada);
 }
 
 // ---------- Máscara de telefone brasileira: (XX) XXXXX-XXXX (ou XXXX-XXXX se fixo) ----------

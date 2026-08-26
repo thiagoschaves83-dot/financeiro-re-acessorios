@@ -182,9 +182,11 @@ def editar_cliente(cliente_id):
 def nova_compra(cliente_id):
     descricao = request.form.get("descricao", "").strip()
     valor_total = float(request.form.get("valor_total", "0").replace(",", "."))
+    entrada_raw = request.form.get("entrada", "").strip()
+    entrada = float(entrada_raw.replace(",", ".")) if entrada_raw else 0
     datas_parcelas = request.form.getlist("data_parcela")
     conn = db.get_conn()
-    compra_id = db.criar_compra(conn, cliente_id, descricao, valor_total, datas_parcelas)
+    compra_id = db.criar_compra(conn, cliente_id, descricao, valor_total, datas_parcelas, entrada=entrada)
     conn.close()
     return redirect(url_for("compra_detalhe", compra_id=compra_id))
 
@@ -358,6 +360,7 @@ def nova_venda():
     telefone = request.form.get("telefone", "").strip()
     descricao = request.form.get("descricao", "").strip()
     valor_total_raw = request.form.get("valor_total", "0").replace(",", ".")
+    entrada_raw = request.form.get("entrada", "").strip()
     datas_parcelas = request.form.getlist("data_parcela")
 
     if not nome_cliente:
@@ -368,6 +371,7 @@ def nova_venda():
         return redirect(url_for("vendas"))
     try:
         valor_total = float(valor_total_raw)
+        entrada = float(entrada_raw.replace(",", ".")) if entrada_raw else 0
     except ValueError:
         flash("Valor inválido.", "erro")
         return redirect(url_for("vendas"))
@@ -381,7 +385,7 @@ def nova_venda():
         cliente_id = db.criar_cliente(conn, nome_cliente, telefone)
         aviso = f"Cliente novo criado: {nome_cliente}. Se já existia com outro nome, corrija pra não duplicar."
 
-    compra_id = db.criar_compra(conn, cliente_id, descricao, valor_total, datas_parcelas)
+    compra_id = db.criar_compra(conn, cliente_id, descricao, valor_total, datas_parcelas, entrada=entrada)
     conn.close()
     flash(aviso, "ok")
     return redirect(url_for("compra_detalhe", compra_id=compra_id))

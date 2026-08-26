@@ -243,18 +243,27 @@ def buscar_compra(conn, compra_id):
     return conn.execute("SELECT * FROM compras WHERE id = ?", (compra_id,)).fetchone()
 
 
-def criar_compra(conn, cliente_id, descricao, valor_total, datas_parcelas):
+def criar_compra(conn, cliente_id, descricao, valor_total, datas_parcelas, entrada=0):
     """datas_parcelas: uma data (AAAA-MM-DD) por parcela, na ordem — cada uma já vem
     editada da tela se o Thiago mudou o padrão de 30 em 30 dias. Lista vazia = à vista,
-    sem parcela fixa."""
+    sem parcela fixa. `entrada`: valor já pago na hora da venda — vira um pagamento
+    imediato, e as parcelas dividem só o que sobra (valor_total - entrada), não o
+    valor_total inteiro."""
     cur = conn.execute(
         "INSERT INTO compras (cliente_id, descricao, valor_total, data) VALUES (?, ?, ?, ?)",
         (cliente_id, descricao.strip(), valor_total, hoje()),
     )
     compra_id = cur.lastrowid
+    entrada = entrada or 0
+    if entrada > 0:
+        conn.execute(
+            "INSERT INTO pagamentos (compra_id, parcela_id, valor, data, forma_pagamento) VALUES (?, ?, ?, ?, ?)",
+            (compra_id, None, entrada, hoje(), "Entrada"),
+        )
     datas_parcelas = [d for d in datas_parcelas if d]
     if datas_parcelas:
-        valor_parcela = round(valor_total / len(datas_parcelas), 2)
+        restante = round(valor_total - entrada, 2)
+        valor_parcela = round(restante / len(datas_parcelas), 2)
         for i, venc in enumerate(datas_parcelas):
             conn.execute(
                 "INSERT INTO parcelas (compra_id, numero, valor_previsto, vencimento) VALUES (?, ?, ?, ?)",

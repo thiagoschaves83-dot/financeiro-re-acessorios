@@ -26,35 +26,22 @@ aplicarMascaraTelefone('campo-editar-telefone-cliente');
 <div class="card">
   <h3 style="margin-top:0;">Nova compra</h3>
   <form method="post" action="{{ url_for('nova_compra', cliente_id=cliente.id) }}">
-    <label>Produto comprado</label>
-    <div class="campo-autocomplete" style="width:400px;">
-      <input type="text" id="campo-produto-compra" autocomplete="off" style="width:400px" placeholder="Busque por nome, código ou marca do catálogo (sem acento já acha), ou digite livre">
-      <div class="autocomplete-dropdown" id="dropdown-produto-compra"></div>
-    </div>
+    <label>Produtos comprados</label>
+    <div id="itens-produto-compra"></div>
+    <button type="button" id="btn-add-item-compra" class="btn btn-secundario" style="font-size:0.8rem; padding:5px 10px; margin-top:4px;">+ Adicionar outro produto</button>
     <input type="hidden" name="descricao" id="campo-descricao-compra" required>
-    <div style="margin:4px 0 0;">
-      <button type="button" id="btn-toggle-produto-novo-compra" class="btn btn-secundario" style="font-size:0.8rem; padding:5px 10px;">Não achei o produto — cadastrar novo</button>
-    </div>
-    <div id="form-produto-novo-compra" style="display:none; background:var(--fundo); border-radius:8px; padding:12px; margin-top:8px;">
-      <label>Código (opcional — se deixar em branco, geramos um)</label>
-      <input type="text" id="produto-novo-codigo-compra" style="width:160px" placeholder="ex.: AD010">
-      <label>Nome do produto</label>
-      <input type="text" id="produto-novo-nome-compra" style="width:300px">
-      <label>Marca</label>
-      <input type="text" id="produto-novo-marca-compra" style="width:200px">
-      <label>Preço de venda (R$)</label>
-      <input type="text" id="produto-novo-preco-compra" style="width:120px" placeholder="300,00">
-      <div style="margin-top:10px;">
-        <button type="button" class="btn" id="btn-salvar-produto-novo-compra">Salvar produto</button>
-        <span id="msg-produto-novo-compra" style="font-size:0.85rem; margin-left:10px;"></span>
-      </div>
-    </div>
-    <label>Valor total (R$)</label>
+
+    <label>Valor total (R$) — soma dos produtos acima, mas pode editar</label>
     <input type="text" name="valor_total" id="campo-valor-compra" required placeholder="300,00" style="width:120px"
-           oninput="atualizarValoresParcelas('caixinhas-parcelas-compra', 'campo-valor-compra')">
+           oninput="atualizarValoresParcelas('caixinhas-parcelas-compra', 'campo-valor-compra', 'campo-entrada-compra')">
+
+    <label>Entrada (R$) — já pago na hora; o resto divide nas parcelas (deixe em branco se não tiver)</label>
+    <input type="text" name="entrada" id="campo-entrada-compra" placeholder="0,00" style="width:120px"
+           oninput="atualizarValoresParcelas('caixinhas-parcelas-compra', 'campo-valor-compra', 'campo-entrada-compra')">
+
     <label>Número de parcelas (0 = à vista / sem parcela fixa)</label>
     <input type="number" id="num-parcelas-compra" value="0" min="0" style="width:80px"
-           oninput="gerarCaixinhasParcelas('num-parcelas-compra', 'caixinhas-parcelas-compra', 'campo-valor-compra')">
+           oninput="gerarCaixinhasParcelas('num-parcelas-compra', 'caixinhas-parcelas-compra', 'campo-valor-compra', 'campo-entrada-compra')">
 
     <div id="caixinhas-parcelas-compra" style="display:flex; flex-direction:column; gap:10px; margin-top:6px;"></div>
     <div style="margin-top:14px;">
@@ -87,20 +74,12 @@ const PRODUTOS_COMPRA = [
     numeracao: {{ p.numeracao | tojson }}, preco_venda: {{ p.preco_venda | tojson }} },
   {% endfor %}
 ];
-inicializarSeletorProduto({
-  produto: 'campo-produto-compra',
-  dropdown: 'dropdown-produto-compra',
+inicializarMultiProduto({
+  containerItens: 'itens-produto-compra',
+  btnAdicionar: 'btn-add-item-compra',
   itens: PRODUTOS_COMPRA,
-  descricao: 'campo-descricao-compra',
-  valor: 'campo-valor-compra',
-  toggleNovo: 'btn-toggle-produto-novo-compra',
-  formNovo: 'form-produto-novo-compra',
-  codigoNovo: 'produto-novo-codigo-compra',
-  nomeNovo: 'produto-novo-nome-compra',
-  marcaNovo: 'produto-novo-marca-compra',
-  precoNovo: 'produto-novo-preco-compra',
-  salvarNovo: 'btn-salvar-produto-novo-compra',
-  msgNovo: 'msg-produto-novo-compra',
+  idDescricaoFinal: 'campo-descricao-compra',
+  idValorFinal: 'campo-valor-compra',
 });
 </script>
 {% endblock %}

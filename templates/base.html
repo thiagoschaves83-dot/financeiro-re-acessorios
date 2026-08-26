@@ -149,7 +149,43 @@
 // Gera uma caixinha de data por parcela — padrão 30 dias entre uma e outra,
 // mas cada uma continua editável na mão depois de gerada. Só regenera quando
 // o número de parcelas muda, pra não apagar data que o Thiago já ajustou.
-function gerarCaixinhasParcelas(idNumParcelas, idContainer) {
+function _valorParaNumero(texto) {
+  return parseFloat((texto || "0").replace(",", ".")) || 0;
+}
+
+// Mostra quanto cada parcela vai valer (valor total dividido em partes iguais) —
+// só informativo, o valor de verdade continua sendo calculado do mesmo jeito no
+// servidor quando a compra é salva. Chama de novo sempre que o valor total muda.
+function atualizarValoresParcelas(idContainer, idValorTotal) {
+  const container = document.getElementById(idContainer);
+  if (!container) return;
+  const linhas = container.querySelectorAll(".linha-parcela");
+  if (linhas.length === 0) return;
+  const total = _valorParaNumero(document.getElementById(idValorTotal).value);
+  const valorCada = total / linhas.length;
+  linhas.forEach(linha => {
+    const span = linha.querySelector(".valor-parcela-info");
+    if (span) span.textContent = `R$ ${valorCada.toFixed(2).replace(".", ",")} por parcela`;
+  });
+}
+
+// Quando o Thiago muda a data de uma parcela, as parcelas seguintes (as "de baixo")
+// se ajustam sozinhas mantendo o intervalo de 30 dias a partir dessa nova data —
+// evita ter que corrigir uma por uma quando só a primeira mudou.
+function _cascatearDatasParcelas(idContainer, indiceAlterado) {
+  const container = document.getElementById(idContainer);
+  const inputs = [...container.querySelectorAll("input[type='date']")];
+  const base = inputs[indiceAlterado];
+  if (!base || !base.value) return;
+  const dataBase = new Date(base.value + "T00:00:00");
+  for (let i = indiceAlterado + 1; i < inputs.length; i++) {
+    const d = new Date(dataBase);
+    d.setDate(d.getDate() + 30 * (i - indiceAlterado));
+    inputs[i].value = d.toISOString().slice(0, 10);
+  }
+}
+
+function gerarCaixinhasParcelas(idNumParcelas, idContainer, idValorTotal) {
   const numParcelas = parseInt(document.getElementById(idNumParcelas).value) || 0;
   const container = document.getElementById(idContainer);
   container.innerHTML = "";
@@ -160,18 +196,30 @@ function gerarCaixinhasParcelas(idNumParcelas, idContainer) {
     d.setDate(d.getDate() + 30 * i);
     const iso = d.toISOString().slice(0, 10);
     const linha = document.createElement("div");
+    linha.className = "linha-parcela";
+    linha.style.display = "flex";
+    linha.style.alignItems = "center";
+    linha.style.gap = "10px";
     const label = document.createElement("label");
-    label.style.margin = "0 0 4px";
+    label.style.margin = "0";
+    label.style.minWidth = "150px";
     label.textContent = `Vencimento da parcela ${i + 1}`;
     const input = document.createElement("input");
     input.type = "date";
     input.name = "data_parcela";
     input.value = iso;
     input.style.width = "160px";
+    input.addEventListener("change", () => _cascatearDatasParcelas(idContainer, i));
+    const span = document.createElement("span");
+    span.className = "valor-parcela-info";
+    span.style.color = "#777";
+    span.style.fontSize = "0.85rem";
     linha.appendChild(label);
     linha.appendChild(input);
+    linha.appendChild(span);
     container.appendChild(linha);
   }
+  if (idValorTotal) atualizarValoresParcelas(idContainer, idValorTotal);
 }
 
 // ---------- Máscara de telefone brasileira: (XX) XXXXX-XXXX (ou XXXX-XXXX se fixo) ----------
@@ -281,6 +329,7 @@ function inicializarSeletorProduto(cfg) {
     if (campoDescricao) campoDescricao.value = texto;
     if (p.preco_venda && campoValor) {
       campoValor.value = parseFloat(p.preco_venda).toFixed(2).replace(".", ",");
+      campoValor.dispatchEvent(new Event("input", { bubbles: true }));
     }
   }
 

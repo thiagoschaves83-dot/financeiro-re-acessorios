@@ -9,6 +9,13 @@ import re
 from urllib.parse import quote
 
 
+def _moeda_br(valor: float) -> str:
+    """Mesmo formato brasileiro usado na tela (1234.5 -> '1.234,50'), pra mensagem
+    de WhatsApp ficar igual ao que o cliente já vê no comprovante/carnê."""
+    texto = f"{valor:,.2f}"
+    return texto.replace(",", "_").replace(".", ",").replace("_", ".")
+
+
 def normalizar_telefone(telefone: str) -> str:
     digitos = re.sub(r"\D", "", telefone or "")
     if not digitos:
@@ -22,8 +29,16 @@ def link_comprovante(telefone: str, nome_cliente: str, valor: float, data_str: s
     numero = normalizar_telefone(telefone)
     if not numero:
         return None
+    texto = f"{nome_cliente}, segue o comprovante do seu pagamento de R$ {_moeda_br(valor)}! 💗"
+    return f"https://wa.me/{numero}?text={quote(texto)}"
+
+
+def link_carne(telefone: str, nome_cliente: str, descricao: str, valor_total: float) -> str | None:
+    numero = normalizar_telefone(telefone)
+    if not numero:
+        return None
     texto = (
-        f"Oi, {nome_cliente}! 💗 Aqui está o comprovante do seu pagamento de "
-        f"R$ {valor:.2f} (dia {data_str}). Já anexo o print certinho por aqui!"
+        f"{nome_cliente}, segue o carnê da sua compra ({descricao}) — "
+        f"total de R$ {_moeda_br(valor_total)}. 💗"
     )
     return f"https://wa.me/{numero}?text={quote(texto)}"

@@ -13,7 +13,7 @@
     <td>{{ d.nome }}</td>
     <td>{{ d.telefone or "—" }}</td>
     <td>{{ d.num_compras }}</td>
-    <td class="atraso">R$ {{ "%.2f"|format(d.atraso) }}</td>
+    <td class="atraso">R$ {{ d.atraso | moeda_br }}</td>
     <td><a href="{{ url_for('cliente_detalhe', cliente_id=d.id) }}">ver →</a></td>
   </tr>
   {% else %}

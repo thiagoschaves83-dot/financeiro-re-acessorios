@@ -6,9 +6,9 @@
 
 <div class="card">
   <p>
-    Valor total: <strong>R$ {{ "%.2f"|format(compra.valor_total) }}</strong>
-    &nbsp;·&nbsp; Pago: <strong>R$ {{ "%.2f"|format(pago) }}</strong>
-    &nbsp;·&nbsp; Saldo: <strong class="{{ 'saldo-zero' if saldo <= 0 else 'atraso' }}">R$ {{ "%.2f"|format(saldo) }}</strong>
+    Valor total: <strong>R$ {{ compra.valor_total | moeda_br }}</strong>
+    &nbsp;·&nbsp; Pago: <strong>R$ {{ pago | moeda_br }}</strong>
+    &nbsp;·&nbsp; Saldo: <strong class="{{ 'saldo-zero' if saldo <= 0 else 'atraso' }}">R$ {{ saldo | moeda_br }}</strong>
   </p>
   <a class="btn btn-secundario" href="{{ url_for('editar_compra', compra_id=compra.id) }}">✏️ Editar compra</a>
   <p style="font-size:0.82rem; color:#888; margin-top:8px;">
@@ -32,9 +32,10 @@
   <table>
     <tr><th>Nº</th><th>Valor previsto</th><th>Vencimento</th></tr>
     {% for p in parcelas %}
-    <tr><td>{{ p.numero }}</td><td>R$ {{ "%.2f"|format(p.valor_previsto) }}</td><td>{{ p.vencimento | data_br }}</td></tr>
+    <tr><td>{{ p.numero }}</td><td>R$ {{ p.valor_previsto | moeda_br }}</td><td>{{ p.vencimento | data_br }}</td></tr>
     {% endfor %}
   </table>
+  <a class="btn" style="margin-top:10px;" href="{{ url_for('carne', compra_id=compra.id) }}" target="_blank">📋 Ver / enviar carnê</a>
 </div>
 {% endif %}
 
@@ -59,7 +60,7 @@
   {% for p in pagamentos %}
   <tr>
     <td>{{ p.data | data_br }}</td>
-    <td>R$ {{ "%.2f"|format(p.valor) }}</td>
+    <td>R$ {{ p.valor | moeda_br }}</td>
     <td>{{ p.forma_pagamento or "—" }}</td>
     <td>
       <a href="{{ url_for('comprovante', compra_id=compra.id, pagamento_id=p.id) }}">comprovante</a>

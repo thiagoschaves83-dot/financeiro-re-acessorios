@@ -12,7 +12,7 @@
   <tr>
     <td>{{ d.mes }}</td>
     <td>{{ d.qtd_compras }}</td>
-    <td>R$ {{ "%.2f"|format(d.total_vendido) }}</td>
+    <td>R$ {{ d.total_vendido | moeda_br }}</td>
   </tr>
   {% else %}
   <tr><td colspan="3">Nenhuma venda registrada ainda.</td></tr>

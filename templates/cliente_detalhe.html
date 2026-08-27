@@ -57,9 +57,9 @@ aplicarMascaraTelefone('campo-editar-telefone-cliente');
   <tr>
     <td>{{ c.data | data_br }}</td>
     <td>{{ c.descricao }}</td>
-    <td>R$ {{ "%.2f"|format(c.valor_total) }}</td>
-    <td>R$ {{ "%.2f"|format(c.pago) }}</td>
-    <td class="{{ 'saldo-zero' if c.saldo <= 0 else 'atraso' }}">R$ {{ "%.2f"|format(c.saldo) }}</td>
+    <td>R$ {{ c.valor_total | moeda_br }}</td>
+    <td>R$ {{ c.pago | moeda_br }}</td>
+    <td class="{{ 'saldo-zero' if c.saldo <= 0 else 'atraso' }}">R$ {{ c.saldo | moeda_br }}</td>
     <td><a href="{{ url_for('compra_detalhe', compra_id=c.id) }}">ver →</a></td>
   </tr>
   {% else %}

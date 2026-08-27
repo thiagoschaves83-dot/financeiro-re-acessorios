@@ -22,6 +22,18 @@ app.config["SESSION_COOKIE_HTTPONLY"] = True
 db.init_db()
 
 
+@app.template_filter("moeda_br")
+def moeda_br(valor):
+    """Formata número pro padrão brasileiro de moeda: 1234.5 vira '1.234,50'
+    (ponto separando milhar, vírgula separando centavo) — só pra exibição na tela,
+    não usar em campo de formulário (o valor volta pro servidor com vírgula decimal,
+    então um ponto de milhar juntado quebraria o `.replace(",", ".")` do parser)."""
+    if valor is None:
+        return valor
+    texto = f"{valor:,.2f}"
+    return texto.replace(",", "_").replace(".", ",").replace("_", ".")
+
+
 @app.template_filter("data_br")
 def data_br(valor):
     """Converte AAAA-MM-DD (formato interno) pra DD/MM/AAAA (formato de exibição)."""
@@ -185,8 +197,12 @@ def nova_compra(cliente_id):
     entrada_raw = request.form.get("entrada", "").strip()
     entrada = float(entrada_raw.replace(",", ".")) if entrada_raw else 0
     datas_parcelas = request.form.getlist("data_parcela")
+    valores_parcelas = [
+        float(v.replace(",", ".")) if v.strip() else None
+        for v in request.form.getlist("valor_parcela")
+    ]
     conn = db.get_conn()
-    compra_id = db.criar_compra(conn, cliente_id, descricao, valor_total, datas_parcelas, entrada=entrada)
+    compra_id = db.criar_compra(conn, cliente_id, descricao, valor_total, datas_parcelas, entrada=entrada, valores_parcelas=valores_parcelas)
     conn.close()
     return redirect(url_for("compra_detalhe", compra_id=compra_id))
 
@@ -335,6 +351,30 @@ def comprovante(compra_id, pagamento_id):
     )
 
 
+@app.route("/compras/<int:compra_id>/carne")
+def carne(compra_id):
+    conn = db.get_conn()
+    compra = db.buscar_compra(conn, compra_id)
+    if not compra:
+        conn.close()
+        flash("Compra não encontrada.", "erro")
+        return redirect(url_for("vendas"))
+    cliente = db.buscar_cliente(conn, compra["cliente_id"])
+    parcelas = db.parcelas_com_status(conn, compra_id)
+    saldo, pago = db.saldo_compra(conn, compra)
+    conn.close()
+    link_zap = whatsapp.link_carne(cliente["telefone"], cliente["nome"], compra["descricao"], compra["valor_total"])
+    return render_template(
+        "carne.html",
+        compra=compra,
+        cliente=cliente,
+        parcelas=parcelas,
+        saldo=saldo,
+        pago=pago,
+        link_zap=link_zap,
+    )
+
+
 # ---------- Vendas (lista de todas as compras, de todos os clientes) ----------
 
 @app.route("/vendas")
@@ -372,6 +412,10 @@ def nova_venda():
     try:
         valor_total = float(valor_total_raw)
         entrada = float(entrada_raw.replace(",", ".")) if entrada_raw else 0
+        valores_parcelas = [
+            float(v.replace(",", ".")) if v.strip() else None
+            for v in request.form.getlist("valor_parcela")
+        ]
     except ValueError:
         flash("Valor inválido.", "erro")
         return redirect(url_for("vendas"))
@@ -385,7 +429,7 @@ def nova_venda():
         cliente_id = db.criar_cliente(conn, nome_cliente, telefone)
         aviso = f"Cliente novo criado: {nome_cliente}. Se já existia com outro nome, corrija pra não duplicar."
 
-    compra_id = db.criar_compra(conn, cliente_id, descricao, valor_total, datas_parcelas, entrada=entrada)
+    compra_id = db.criar_compra(conn, cliente_id, descricao, valor_total, datas_parcelas, entrada=entrada, valores_parcelas=valores_parcelas)
     conn.close()
     flash(aviso, "ok")
     return redirect(url_for("compra_detalhe", compra_id=compra_id))

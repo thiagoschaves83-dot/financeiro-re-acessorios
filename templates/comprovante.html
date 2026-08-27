@@ -68,10 +68,10 @@
     <div class="linha"><span>Referente a</span><strong>{{ compra.descricao }}</strong></div>
     <div class="linha"><span>Data do pagamento</span><strong>{{ pagamento.data | data_br }}</strong></div>
     <div class="linha"><span>Forma de pagamento</span><strong>{{ pagamento.forma_pagamento or "—" }}</strong></div>
-    <div class="valor-grande">R$ {{ "%.2f"|format(pagamento.valor) }}</div>
+    <div class="valor-grande">R$ {{ pagamento.valor | moeda_br }}</div>
     <div class="linha"><span>Saldo restante desta compra</span>
       <strong style="color: {{ '#1F7A3E' if saldo <= 0 else '#C2293C' }}">
-        R$ {{ "%.2f"|format(saldo) }}{% if saldo <= 0 %} — quitado 🎉{% endif %}
+        R$ {{ saldo | moeda_br }}{% if saldo <= 0 %} — quitado 🎉{% endif %}
       </strong>
     </div>
   </div>

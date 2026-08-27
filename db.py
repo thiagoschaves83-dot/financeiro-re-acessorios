@@ -243,12 +243,14 @@ def buscar_compra(conn, compra_id):
     return conn.execute("SELECT * FROM compras WHERE id = ?", (compra_id,)).fetchone()
 
 
-def criar_compra(conn, cliente_id, descricao, valor_total, datas_parcelas, entrada=0):
+def criar_compra(conn, cliente_id, descricao, valor_total, datas_parcelas, entrada=0, valores_parcelas=None):
     """datas_parcelas: uma data (AAAA-MM-DD) por parcela, na ordem — cada uma já vem
     editada da tela se o Thiago mudou o padrão de 30 em 30 dias. Lista vazia = à vista,
     sem parcela fixa. `entrada`: valor já pago na hora da venda — vira um pagamento
     imediato, e as parcelas dividem só o que sobra (valor_total - entrada), não o
-    valor_total inteiro."""
+    valor_total inteiro. `valores_parcelas`: valor de cada parcela na mesma ordem das
+    datas, editado na tela pra fechar número redondo (evita dízima tipo 33,33) — quem
+    não vier preenchido usa a divisão igual do que sobrar."""
     cur = conn.execute(
         "INSERT INTO compras (cliente_id, descricao, valor_total, data) VALUES (?, ?, ?, ?)",
         (cliente_id, descricao.strip(), valor_total, hoje()),
@@ -260,14 +262,21 @@ def criar_compra(conn, cliente_id, descricao, valor_total, datas_parcelas, entra
             "INSERT INTO pagamentos (compra_id, parcela_id, valor, data, forma_pagamento) VALUES (?, ?, ?, ?, ?)",
             (compra_id, None, entrada, hoje(), "Entrada"),
         )
-    datas_parcelas = [d for d in datas_parcelas if d]
-    if datas_parcelas:
+    valores_parcelas = valores_parcelas or []
+    pares = []
+    for i, venc in enumerate(datas_parcelas):
+        if not venc:
+            continue
+        valor = valores_parcelas[i] if i < len(valores_parcelas) else None
+        pares.append((venc, valor))
+    if pares:
         restante = round(valor_total - entrada, 2)
-        valor_parcela = round(restante / len(datas_parcelas), 2)
-        for i, venc in enumerate(datas_parcelas):
+        valor_padrao = round(restante / len(pares), 2)
+        for i, (venc, valor) in enumerate(pares):
+            valor_final = valor if valor is not None else valor_padrao
             conn.execute(
                 "INSERT INTO parcelas (compra_id, numero, valor_previsto, vencimento) VALUES (?, ?, ?, ?)",
-                (compra_id, i + 1, valor_parcela, venc),
+                (compra_id, i + 1, valor_final, venc),
             )
     conn.commit()
     return compra_id
@@ -344,6 +353,23 @@ def parcelas_compra(conn, compra_id):
     return conn.execute(
         "SELECT * FROM parcelas WHERE compra_id = ? ORDER BY numero", (compra_id,)
     ).fetchall()
+
+
+def parcelas_com_status(conn, compra_id):
+    """Marca cada parcela como paga ou não, pro carnê — como os pagamentos não são
+    amarrados a uma parcela específica (o Thiago só registra "paguei R$X"), consome
+    o total já pago das parcelas mais antigas pra mais novas, igual o cliente pagaria
+    na prática."""
+    parcelas = parcelas_compra(conn, compra_id)
+    total_pago = sum(p["valor"] for p in pagamentos_compra(conn, compra_id))
+    resultado = []
+    restante = total_pago
+    for p in parcelas:
+        paga = restante >= p["valor_previsto"] - 0.01
+        if paga:
+            restante = round(restante - p["valor_previsto"], 2)
+        resultado.append({**dict(p), "paga": paga})
+    return resultado
 
 
 # ---------- Pagamentos ----------

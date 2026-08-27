@@ -153,10 +153,11 @@ function _valorParaNumero(texto) {
   return parseFloat((texto || "0").replace(",", ".")) || 0;
 }
 
-// Mostra quanto cada parcela vai valer — o total menos a entrada (se tiver),
-// dividido em partes iguais entre as parcelas restantes. Só informativo, o valor
-// de verdade é calculado do mesmo jeito no servidor quando a compra é salva.
-// Chama de novo sempre que o valor total ou a entrada mudam.
+// Preenche o valor sugerido de cada parcela — o total menos a entrada (se tiver),
+// dividido em partes iguais entre as parcelas restantes. Já vem pronto no campo,
+// mas o Thiago pode editar cada um na mão (ex.: pra não ficar uma dízima tipo
+// 33,33 — ele ajusta pra 33/33/34 e fecha certinho). Chama de novo sempre que o
+// valor total, a entrada ou o número de parcelas mudam — reaplicando a sugestão.
 function atualizarValoresParcelas(idContainer, idValorTotal, idEntrada) {
   const container = document.getElementById(idContainer);
   if (!container) return;
@@ -167,8 +168,8 @@ function atualizarValoresParcelas(idContainer, idValorTotal, idEntrada) {
   const restante = Math.max(0, total - entrada);
   const valorCada = restante / linhas.length;
   linhas.forEach(linha => {
-    const span = linha.querySelector(".valor-parcela-info");
-    if (span) span.textContent = `R$ ${valorCada.toFixed(2).replace(".", ",")} por parcela`;
+    const input = linha.querySelector(".valor-parcela-input");
+    if (input) input.value = valorCada.toFixed(2).replace(".", ",");
   });
 }
 
@@ -282,6 +283,28 @@ function _cascatearDatasParcelas(idContainer, indiceAlterado) {
   }
 }
 
+// Quando o Thiago edita o valor de uma parcela na mão (ex.: pra fechar um número
+// redondo em vez de dízima), as parcelas seguintes dividem o que sobrou entre elas
+// — mesma lógica da cascata de datas, mas pro valor.
+function _cascatearValoresParcelas(idContainer, idValorTotal, idEntrada, indiceAlterado) {
+  const container = document.getElementById(idContainer);
+  const inputs = [...container.querySelectorAll(".valor-parcela-input")];
+  const restantesDepois = inputs.length - 1 - indiceAlterado;
+  if (restantesDepois <= 0) return;
+  const total = _valorParaNumero(document.getElementById(idValorTotal).value);
+  const entrada = idEntrada && document.getElementById(idEntrada) ? _valorParaNumero(document.getElementById(idEntrada).value) : 0;
+  const restanteGeral = Math.max(0, total - entrada);
+  let somaFixada = 0;
+  for (let i = 0; i <= indiceAlterado; i++) {
+    somaFixada += _valorParaNumero(inputs[i].value);
+  }
+  const sobra = Math.max(0, restanteGeral - somaFixada);
+  const valorCada = sobra / restantesDepois;
+  for (let i = indiceAlterado + 1; i < inputs.length; i++) {
+    inputs[i].value = valorCada.toFixed(2).replace(".", ",");
+  }
+}
+
 function gerarCaixinhasParcelas(idNumParcelas, idContainer, idValorTotal, idEntrada) {
   const numParcelas = parseInt(document.getElementById(idNumParcelas).value) || 0;
   const container = document.getElementById(idContainer);
@@ -307,13 +330,22 @@ function gerarCaixinhasParcelas(idNumParcelas, idContainer, idValorTotal, idEntr
     input.value = iso;
     input.style.width = "160px";
     input.addEventListener("change", () => _cascatearDatasParcelas(idContainer, i));
-    const span = document.createElement("span");
-    span.className = "valor-parcela-info";
-    span.style.color = "#777";
-    span.style.fontSize = "0.85rem";
+    const prefixoValor = document.createElement("span");
+    prefixoValor.textContent = "R$";
+    prefixoValor.style.color = "#777";
+    prefixoValor.style.fontSize = "0.85rem";
+    const inputValor = document.createElement("input");
+    inputValor.type = "text";
+    inputValor.name = "valor_parcela";
+    inputValor.className = "valor-parcela-input";
+    inputValor.style.width = "80px";
+    inputValor.placeholder = "0,00";
+    inputValor.title = "Valor desta parcela — vem dividido igual, mas pode ajustar (ex.: pra fechar certinho sem dízima); as parcelas seguintes recalculam sozinhas";
+    inputValor.addEventListener("change", () => _cascatearValoresParcelas(idContainer, idValorTotal, idEntrada, i));
     linha.appendChild(label);
     linha.appendChild(input);
-    linha.appendChild(span);
+    linha.appendChild(prefixoValor);
+    linha.appendChild(inputValor);
     container.appendChild(linha);
   }
   if (idValorTotal) atualizarValoresParcelas(idContainer, idValorTotal, idEntrada);
@@ -522,8 +554,14 @@ function _dataBr(iso) {
   return `${partes[2]}/${partes[1]}/${partes[0]}`;
 }
 
+// Só pra texto exibido (aviso de duplicidade) — nunca usar em campo de formulário,
+// o ponto de milhar quebraria o parser do servidor (`.replace(",", ".")`).
+function _moedaBr(valor) {
+  return (valor || 0).toLocaleString("pt-BR", { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+}
+
 function _linhaClienteDuplicado(d) {
-  const saldo = (d.saldo_total || 0).toFixed(2).replace(".", ",");
+  const saldo = _moedaBr(d.saldo_total);
   const ultima = _dataBr(d.ultima_compra) || "nunca comprou";
   return `- ${d.nome} — ${d.telefone || "sem telefone cadastrado"} — saldo em aberto: R$ ${saldo} — última compra: ${ultima}`;
 }

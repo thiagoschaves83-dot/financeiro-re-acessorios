@@ -38,7 +38,7 @@
     <td>{{ p.nome }}</td>
     <td>{{ p.marca }}</td>
     <td>{{ p.numeracao }}</td>
-    <td>{{ "R$ %.2f"|format(p.preco_venda) if p.preco_venda else "—" }}</td>
+    <td>{{ "R$ " ~ (p.preco_venda | moeda_br) if p.preco_venda else "—" }}</td>
     <td>
       <form class="inline" method="post" action="{{ url_for('definir_custo', codigo=p.codigo) }}">
         <input type="text" name="preco_custo" value="{{ "%.2f"|format(p.preco_custo) if p.preco_custo else '' }}"
@@ -47,7 +47,7 @@
     </td>
     <td>
       {% if p.preco_custo and p.preco_venda %}
-        R$ {{ "%.2f"|format(p.preco_venda - p.preco_custo) }}
+        R$ {{ (p.preco_venda - p.preco_custo) | moeda_br }}
       {% else %}
         —
       {% endif %}

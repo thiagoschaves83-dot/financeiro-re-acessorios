@@ -1,0 +1,134 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+<meta charset="UTF-8">
+<title>Carnê — {{ cliente.nome }}</title>
+<style>
+  :root { --rosa: #EBB3D6; --carmim: #C2293C; --carmim-escuro: #8D0E23; }
+  body { font-family: 'Segoe UI', system-ui, sans-serif; background:#FAF6F7; margin:0; padding:24px; }
+  .carne {
+    max-width: 420px;
+    margin: 0 auto;
+    background: #fff;
+    border-radius: 14px;
+    overflow: hidden;
+    box-shadow: 0 2px 12px rgba(0,0,0,0.1);
+  }
+  .cabecalho {
+    background: linear-gradient(135deg, var(--carmim), var(--carmim-escuro));
+    padding: 24px;
+    text-align: center;
+    color: #fff;
+  }
+  .cabecalho img { width: 64px; height: 64px; border-radius: 50%; object-fit: cover; border: 3px solid var(--rosa); }
+  .cabecalho h1 { font-size: 1.15rem; margin: 10px 0 0; font-weight: 600; }
+  .corpo { padding: 20px 24px; }
+  .linha { display: flex; justify-content: space-between; padding: 6px 0; border-bottom: 1px dashed #eee; font-size: 0.92rem; }
+  .linha strong { color: var(--carmim-escuro); text-align: right; }
+  .valor-grande { text-align: center; font-size: 1.6rem; font-weight: 800; color: var(--carmim-escuro); margin: 14px 0; }
+  .rodape { text-align: center; padding: 16px; font-size: 0.8rem; color: #999; }
+
+  .lista-parcelas { padding: 4px 24px 20px; }
+  .parcela {
+    position: relative;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 12px 14px;
+    margin-bottom: 8px;
+    border-radius: 10px;
+    background: #FAFAFA;
+    border-left: 3px solid var(--carmim);
+    overflow: hidden;
+  }
+  .parcela.paga {
+    background: #FBEEF5;
+    border-left: 3px solid var(--rosa);
+  }
+  .parcela .marca-dagua {
+    position: absolute;
+    right: -10px;
+    top: 50%;
+    transform: translateY(-50%) rotate(-12deg);
+    width: 56px;
+    height: 56px;
+    border-radius: 50%;
+    object-fit: cover;
+    opacity: 0.16;
+    pointer-events: none;
+  }
+  .parcela .info-esquerda { display: flex; flex-direction: column; gap: 2px; z-index: 1; }
+  .parcela .numero { font-weight: 700; color: var(--carmim-escuro); font-size: 0.9rem; }
+  .parcela .vencimento { font-size: 0.8rem; color: #777; }
+  .parcela .valor { font-weight: 700; color: var(--carmim-escuro); font-size: 0.95rem; z-index: 1; }
+  .parcela.paga .valor, .parcela.paga .numero { color: var(--carmim-escuro); }
+
+  .acoes { max-width: 420px; margin: 20px auto 0; text-align: center; }
+  .btn {
+    display: inline-block;
+    padding: 10px 20px;
+    border-radius: 8px;
+    text-decoration: none;
+    font-size: 0.9rem;
+    margin: 4px;
+    border: none;
+    cursor: pointer;
+  }
+  .btn-zap { background: #25D366; color: #fff; }
+  .btn-print { background: var(--carmim); color: #fff; }
+  .btn-voltar { background: #eee; color: #555; }
+  @media print { .acoes, .rodape-nota { display: none; } body { background: #fff; padding: 0; } }
+</style>
+</head>
+<body>
+
+<div class="carne">
+  <div class="cabecalho">
+    <img src="{{ url_for('static', filename='logo.jpg') }}" alt="Rê Acessórios">
+    <h1>Seu Carnê Rê Acessórios</h1>
+  </div>
+  <div class="corpo">
+    <div class="linha"><span>Cliente</span><strong>{{ cliente.nome }}</strong></div>
+    <div class="linha"><span>Produto</span><strong>{{ compra.descricao }}</strong></div>
+    <div class="linha"><span>Data da compra</span><strong>{{ compra.data | data_br }}</strong></div>
+    <div class="valor-grande">R$ {{ compra.valor_total | moeda_br }}</div>
+    <div class="linha"><span>Saldo em aberto</span>
+      <strong style="color: {{ '#1F7A3E' if saldo <= 0 else 'var(--carmim-escuro)' }}">
+        R$ {{ saldo | moeda_br }}{% if saldo <= 0 %} — quitado 🎉{% endif %}
+      </strong>
+    </div>
+  </div>
+
+  <div class="lista-parcelas">
+    {% for p in parcelas %}
+    <div class="parcela {{ 'paga' if p.paga else '' }}">
+      <div class="info-esquerda">
+        <span class="numero">Parcela {{ p.numero }}/{{ parcelas|length }}</span>
+        <span class="vencimento">Vencimento {{ p.vencimento | data_br }}</span>
+      </div>
+      <span class="valor">R$ {{ p.valor_previsto | moeda_br }}</span>
+      {% if p.paga %}
+      <img class="marca-dagua" src="{{ url_for('static', filename='logo.jpg') }}" alt="">
+      {% endif %}
+    </div>
+    {% endfor %}
+  </div>
+
+  <div class="rodape">Rê Acessórios · @reacessoriosshoes · (32) 98415-6470</div>
+</div>
+
+<div class="acoes">
+  {% if link_zap %}
+  <a class="btn btn-zap" href="{{ link_zap }}" target="_blank">📲 Enviar carnê pelo WhatsApp</a>
+  {% endif %}
+  <button class="btn btn-print" onclick="window.print()">🖨️ Imprimir / salvar PDF</button>
+  <a class="btn btn-voltar" href="{{ url_for('compra_detalhe', compra_id=compra.id) }}">← voltar</a>
+  <p class="rodape-nota" style="font-size:0.8rem; color:#999; margin-top:12px;">
+    O botão do WhatsApp abre a conversa já com o cliente certo e uma mensagem pronta —
+    mas não anexa a imagem sozinho. Tire um print deste carnê (ou salve em PDF)
+    e anexe na conversa que vai abrir.
+  </p>
+</div>
+
+</body>
+</html>

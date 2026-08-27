@@ -64,6 +64,37 @@ CREATE TABLE IF NOT EXISTS produtos (
     status_catalogo TEXT,
     atualizado_em TEXT NOT NULL
 );
+
+CREATE TABLE IF NOT EXISTS fornecedores (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    nome TEXT NOT NULL,
+    telefone TEXT,
+    criado_em TEXT NOT NULL
+);
+
+CREATE TABLE IF NOT EXISTS contas_pagar (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    fornecedor_id INTEGER REFERENCES fornecedores(id),
+    categoria TEXT NOT NULL,
+    descricao TEXT NOT NULL,
+    valor_total REAL NOT NULL,
+    data TEXT NOT NULL
+);
+
+CREATE TABLE IF NOT EXISTS pagamentos_saida (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    conta_pagar_id INTEGER NOT NULL REFERENCES contas_pagar(id),
+    valor REAL NOT NULL,
+    data TEXT NOT NULL,
+    forma_pagamento TEXT
+);
+
+CREATE TABLE IF NOT EXISTS outras_receitas (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    descricao TEXT NOT NULL,
+    valor REAL NOT NULL,
+    data TEXT NOT NULL
+);
 """
 
 
@@ -647,6 +678,180 @@ def produtos_mais_vendidos(conn):
         r["total_vendido"] = round(r["total_vendido"], 2)
     resultado.sort(key=lambda r: (-r["qtd"], -r["total_vendido"]))
     return resultado
+
+
+# ---------- Fornecedores ----------
+
+def criar_fornecedor(conn, nome, telefone=""):
+    cur = conn.execute(
+        "INSERT INTO fornecedores (nome, telefone, criado_em) VALUES (?, ?, ?)",
+        (nome.strip(), (telefone or "").strip(), hoje()),
+    )
+    conn.commit()
+    return cur.lastrowid
+
+
+def listar_fornecedores(conn):
+    return conn.execute("SELECT * FROM fornecedores ORDER BY nome").fetchall()
+
+
+def buscar_fornecedor(conn, fornecedor_id):
+    return conn.execute("SELECT * FROM fornecedores WHERE id = ?", (fornecedor_id,)).fetchone()
+
+
+# ---------- Contas a pagar (saídas: compra, despesa, outra_despesa) ----------
+# "Fornecedores" nas saídas não é uma categoria própria — é um cadastro que
+# qualquer conta (compra ou despesa) pode vincular opcionalmente. A categoria
+# de verdade é sempre compra/despesa/outra_despesa.
+
+def criar_conta_pagar(conn, categoria, descricao, valor_total, data_conta, fornecedor_id=None):
+    cur = conn.execute(
+        "INSERT INTO contas_pagar (fornecedor_id, categoria, descricao, valor_total, data) VALUES (?, ?, ?, ?, ?)",
+        (fornecedor_id, categoria, descricao.strip(), valor_total, data_conta),
+    )
+    conn.commit()
+    return cur.lastrowid
+
+
+def buscar_conta_pagar(conn, conta_id):
+    return conn.execute("SELECT * FROM contas_pagar WHERE id = ?", (conta_id,)).fetchone()
+
+
+def saldo_conta_pagar(conn, conta):
+    pago = conn.execute(
+        "SELECT COALESCE(SUM(valor), 0) AS total FROM pagamentos_saida WHERE conta_pagar_id = ?",
+        (conta["id"],),
+    ).fetchone()["total"]
+    return round(conta["valor_total"] - pago, 2), round(pago, 2)
+
+
+def listar_contas_pagar(conn):
+    contas = conn.execute("SELECT * FROM contas_pagar ORDER BY data DESC, id DESC").fetchall()
+    resultado = []
+    for c in contas:
+        saldo, pago = saldo_conta_pagar(conn, c)
+        fornecedor = buscar_fornecedor(conn, c["fornecedor_id"]) if c["fornecedor_id"] else None
+        resultado.append({**dict(c), "saldo": saldo, "pago": pago, "fornecedor_nome": fornecedor["nome"] if fornecedor else None})
+    return resultado
+
+
+def pagamentos_saida_conta(conn, conta_id):
+    return conn.execute(
+        "SELECT * FROM pagamentos_saida WHERE conta_pagar_id = ? ORDER BY id DESC", (conta_id,)
+    ).fetchall()
+
+
+def registrar_pagamento_saida(conn, conta_id, valor, forma_pagamento, data_pagamento=None):
+    cur = conn.execute(
+        "INSERT INTO pagamentos_saida (conta_pagar_id, valor, data, forma_pagamento) VALUES (?, ?, ?, ?)",
+        (conta_id, valor, data_pagamento or hoje(), forma_pagamento),
+    )
+    conn.commit()
+    return cur.lastrowid
+
+
+# ---------- Outras receitas (dinheiro que entrou fora do fluxo normal de venda) ----------
+
+def criar_outra_receita(conn, descricao, valor, data_receita=None):
+    cur = conn.execute(
+        "INSERT INTO outras_receitas (descricao, valor, data) VALUES (?, ?, ?)",
+        (descricao.strip(), valor, data_receita or hoje()),
+    )
+    conn.commit()
+    return cur.lastrowid
+
+
+def listar_outras_receitas(conn):
+    return conn.execute("SELECT * FROM outras_receitas ORDER BY data DESC, id DESC").fetchall()
+
+
+# ---------- Fluxo de caixa ----------
+
+def recebimentos_mensais(conn):
+    """Visão mensal de recebimentos baseada no VENCIMENTO da parcela (não em quando
+    o pagamento foi de fato registrado): quanto estava previsto pra cada mês, quanto
+    já foi pago (parcela inteira, na ordem — mesma lógica greedy do carnê) e quanto
+    ainda está pendente. Cobre o "quanto deveria receber / recebeu / pendente" por mês."""
+    compras = conn.execute("SELECT * FROM compras").fetchall()
+    resultado = {}
+    for c in compras:
+        for p in parcelas_com_status(conn, c["id"]):
+            mes = p["vencimento"][:7]
+            resultado.setdefault(mes, {"previsto": 0.0, "recebido": 0.0})
+            resultado[mes]["previsto"] += p["valor_previsto"]
+            if p["paga"]:
+                resultado[mes]["recebido"] += p["valor_previsto"]
+    lista = []
+    for mes, d in resultado.items():
+        previsto = round(d["previsto"], 2)
+        recebido = round(d["recebido"], 2)
+        lista.append({"mes": mes, "previsto": previsto, "recebido": recebido, "pendente": round(previsto - recebido, 2)})
+    lista.sort(key=lambda x: x["mes"], reverse=True)
+    return lista
+
+
+def entradas_mensais(conn):
+    """Dinheiro que realmente entrou no caixa, por mês — recebimentos de clientes
+    (tabela `pagamentos`, já alimentada sozinha por toda baixa registrada) e outras
+    receitas manuais. Nenhum lançamento duplicado: é a mesma tabela de sempre."""
+    resultado = {}
+    for l in conn.execute("SELECT substr(data,1,7) AS mes, SUM(valor) AS total FROM pagamentos GROUP BY mes").fetchall():
+        resultado.setdefault(l["mes"], {"recebimentos": 0.0, "outras_receitas": 0.0})
+        resultado[l["mes"]]["recebimentos"] = round(l["total"], 2)
+    for l in conn.execute("SELECT substr(data,1,7) AS mes, SUM(valor) AS total FROM outras_receitas GROUP BY mes").fetchall():
+        resultado.setdefault(l["mes"], {"recebimentos": 0.0, "outras_receitas": 0.0})
+        resultado[l["mes"]]["outras_receitas"] = round(l["total"], 2)
+    return resultado
+
+
+def saidas_mensais(conn):
+    """Dinheiro que realmente saiu do caixa, por mês e por categoria (compra/despesa/
+    outra_despesa) — soma dos pagamentos feitos em contas a pagar."""
+    linhas = conn.execute(
+        """
+        SELECT substr(ps.data, 1, 7) AS mes, cp.categoria AS categoria, SUM(ps.valor) AS total
+        FROM pagamentos_saida ps
+        JOIN contas_pagar cp ON cp.id = ps.conta_pagar_id
+        GROUP BY mes, categoria
+        """
+    ).fetchall()
+    resultado = {}
+    for l in linhas:
+        resultado.setdefault(l["mes"], {"compra": 0.0, "despesa": 0.0, "outra_despesa": 0.0})
+        resultado[l["mes"]][l["categoria"]] = round(l["total"], 2)
+    return resultado
+
+
+def fluxo_caixa_mensal(conn):
+    """Visão mensal consolidada — item central do fluxo de caixa. 'Vendas' aqui é só
+    uma métrica informativa ao lado (quanto foi vendido no mês, mesmo que ainda não
+    recebido); o dinheiro de caixa de verdade é recebimentos + outras receitas menos
+    as saídas. Cada baixa de venda ou pagamento de conta já alimenta isso sozinho,
+    sem precisar lançar nada duas vezes."""
+    entradas = entradas_mensais(conn)
+    saidas = saidas_mensais(conn)
+    vendas = {v["mes"]: v["total_vendido"] for v in vendas_mensais(conn)}
+    meses = set(entradas) | set(saidas) | set(vendas)
+    lista = []
+    for mes in meses:
+        e = entradas.get(mes, {"recebimentos": 0.0, "outras_receitas": 0.0})
+        s = saidas.get(mes, {"compra": 0.0, "despesa": 0.0, "outra_despesa": 0.0})
+        total_entradas = round(e["recebimentos"] + e["outras_receitas"], 2)
+        total_saidas = round(s["compra"] + s["despesa"] + s["outra_despesa"], 2)
+        lista.append({
+            "mes": mes,
+            "vendas": round(vendas.get(mes, 0.0), 2),
+            "recebimentos": e["recebimentos"],
+            "outras_receitas": e["outras_receitas"],
+            "total_entradas": total_entradas,
+            "compras": s["compra"],
+            "despesas": s["despesa"],
+            "outras_despesas": s["outra_despesa"],
+            "total_saidas": total_saidas,
+            "resultado": round(total_entradas - total_saidas, 2),
+        })
+    lista.sort(key=lambda x: x["mes"], reverse=True)
+    return lista
 
 
 # ---------- Dashboard ----------

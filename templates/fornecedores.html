@@ -1,0 +1,33 @@
+{% extends "base.html" %}
+{% block titulo %}Fornecedores — Financeiro{% endblock %}
+{% block conteudo %}
+<h2>Fornecedores</h2>
+
+<div class="card">
+  <form method="post" action="{{ url_for('novo_fornecedor') }}">
+    <label>Nome</label>
+    <input type="text" name="nome" id="campo-nome-fornecedor" required style="width:260px">
+    <label>Telefone</label>
+    <input type="text" name="telefone" id="campo-telefone-fornecedor" placeholder="(32) 98888-7777" maxlength="15" style="width:200px">
+    <div style="margin-top:14px;">
+      <button class="btn" type="submit">+ Cadastrar fornecedor</button>
+    </div>
+  </form>
+</div>
+
+<table>
+  <tr><th>Nome</th><th>Telefone</th></tr>
+  {% for f in fornecedores %}
+  <tr>
+    <td>{{ f.nome }}</td>
+    <td>{{ f.telefone or "—" }}</td>
+  </tr>
+  {% else %}
+  <tr><td colspan="2">Nenhum fornecedor cadastrado ainda.</td></tr>
+  {% endfor %}
+</table>
+
+<script>
+aplicarMascaraTelefone('campo-telefone-fornecedor');
+</script>
+{% endblock %}

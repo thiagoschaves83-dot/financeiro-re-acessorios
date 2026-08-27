@@ -1,0 +1,23 @@
+{% extends "base.html" %}
+{% block titulo %}Recebimentos mensais — Financeiro{% endblock %}
+{% block conteudo %}
+<p><a href="{{ url_for('fluxo_caixa') }}">← Fluxo de caixa</a></p>
+<h2>Recebimentos mensais</h2>
+<p style="color:#777; font-size:0.9rem;">
+  Por mês de vencimento da parcela: quanto estava previsto receber, quanto já foi pago e o que ainda está pendente.
+</p>
+
+<table>
+  <tr><th>Mês</th><th>Previsto</th><th>Recebido</th><th>Pendente</th></tr>
+  {% for m in meses %}
+  <tr>
+    <td>{{ m.mes[5:7] }}/{{ m.mes[0:4] }}</td>
+    <td>R$ {{ m.previsto | moeda_br }}</td>
+    <td>R$ {{ m.recebido | moeda_br }}</td>
+    <td class="{{ 'saldo-zero' if m.pendente <= 0 else 'atraso' }}">R$ {{ m.pendente | moeda_br }}</td>
+  </tr>
+  {% else %}
+  <tr><td colspan="4">Nenhuma parcela registrada ainda.</td></tr>
+  {% endfor %}
+</table>
+{% endblock %}

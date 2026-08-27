@@ -1,0 +1,33 @@
+{% extends "base.html" %}
+{% block titulo %}Outras receitas — Financeiro{% endblock %}
+{% block conteudo %}
+<h2>Outras receitas</h2>
+<p style="color:#777; font-size:0.9rem;">Dinheiro que entrou no caixa fora do fluxo normal de venda/recebimento de cliente — já alimenta o fluxo de caixa sozinho.</p>
+
+<div class="card">
+  <form method="post" action="{{ url_for('nova_outra_receita') }}">
+    <label>Descrição</label>
+    <input type="text" name="descricao" required placeholder="ex.: aporte, venda de item avulso..." style="width:300px">
+    <label>Valor (R$)</label>
+    <input type="text" name="valor" required placeholder="100,00" style="width:120px">
+    <label>Data</label>
+    <input type="date" name="data">
+    <div style="margin-top:14px;">
+      <button class="btn" type="submit">+ Lançar receita</button>
+    </div>
+  </form>
+</div>
+
+<table>
+  <tr><th>Data</th><th>Descrição</th><th>Valor</th></tr>
+  {% for r in receitas %}
+  <tr>
+    <td>{{ r.data | data_br }}</td>
+    <td>{{ r.descricao }}</td>
+    <td>R$ {{ r.valor | moeda_br }}</td>
+  </tr>
+  {% else %}
+  <tr><td colspan="3">Nenhuma receita lançada ainda.</td></tr>
+  {% endfor %}
+</table>
+{% endblock %}

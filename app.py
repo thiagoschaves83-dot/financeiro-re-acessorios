@@ -637,6 +637,156 @@ def relatorio_sem_compra_csv():
     return _csv_response(f"clientes_sem_compra_{dias}dias.csv", ["Cliente", "Telefone", "Última compra"], linhas)
 
 
+# ---------- Fornecedores ----------
+
+@app.route("/fornecedores")
+def fornecedores():
+    conn = db.get_conn()
+    lista = db.listar_fornecedores(conn)
+    conn.close()
+    return render_template("fornecedores.html", fornecedores=lista)
+
+
+@app.route("/fornecedores/novo", methods=["POST"])
+def novo_fornecedor():
+    nome = request.form.get("nome", "").strip()
+    telefone = request.form.get("telefone", "").strip()
+    if not nome:
+        flash("Nome do fornecedor é obrigatório.", "erro")
+        return redirect(url_for("fornecedores"))
+    conn = db.get_conn()
+    db.criar_fornecedor(conn, nome, telefone)
+    conn.close()
+    flash("Fornecedor cadastrado.", "ok")
+    return redirect(url_for("fornecedores"))
+
+
+# ---------- Contas a pagar (compras, despesas, outras despesas) ----------
+
+@app.route("/contas-pagar")
+def contas_pagar():
+    conn = db.get_conn()
+    lista = db.listar_contas_pagar(conn)
+    fornecedores_lista = db.listar_fornecedores(conn)
+    conn.close()
+    return render_template("contas_pagar.html", contas=lista, fornecedores=fornecedores_lista)
+
+
+@app.route("/contas-pagar/nova", methods=["POST"])
+def nova_conta_pagar():
+    categoria = request.form.get("categoria", "").strip()
+    descricao = request.form.get("descricao", "").strip()
+    valor_total_raw = request.form.get("valor_total", "0").replace(",", ".")
+    data_conta = request.form.get("data") or db.hoje()
+    fornecedor_id_raw = request.form.get("fornecedor_id", "").strip()
+    fornecedor_id = int(fornecedor_id_raw) if fornecedor_id_raw else None
+
+    if categoria not in ("compra", "despesa", "outra_despesa"):
+        flash("Categoria inválida.", "erro")
+        return redirect(url_for("contas_pagar"))
+    if not descricao:
+        flash("Descrição é obrigatória.", "erro")
+        return redirect(url_for("contas_pagar"))
+    try:
+        valor_total = float(valor_total_raw)
+    except ValueError:
+        flash("Valor inválido.", "erro")
+        return redirect(url_for("contas_pagar"))
+
+    conn = db.get_conn()
+    conta_id = db.criar_conta_pagar(conn, categoria, descricao, valor_total, data_conta, fornecedor_id=fornecedor_id)
+    conn.close()
+    flash("Conta lançada.", "ok")
+    return redirect(url_for("conta_pagar_detalhe", conta_id=conta_id))
+
+
+@app.route("/contas-pagar/<int:conta_id>")
+def conta_pagar_detalhe(conta_id):
+    conn = db.get_conn()
+    conta = db.buscar_conta_pagar(conn, conta_id)
+    if not conta:
+        conn.close()
+        flash("Conta não encontrada.", "erro")
+        return redirect(url_for("contas_pagar"))
+    fornecedor = db.buscar_fornecedor(conn, conta["fornecedor_id"]) if conta["fornecedor_id"] else None
+    saldo, pago = db.saldo_conta_pagar(conn, conta)
+    pagamentos = db.pagamentos_saida_conta(conn, conta_id)
+    conn.close()
+    return render_template(
+        "conta_pagar_detalhe.html",
+        conta=conta,
+        fornecedor=fornecedor,
+        saldo=saldo,
+        pago=pago,
+        pagamentos=pagamentos,
+    )
+
+
+@app.route("/contas-pagar/<int:conta_id>/pagamento", methods=["POST"])
+def novo_pagamento_saida(conta_id):
+    valor_raw = request.form.get("valor", "0").replace(",", ".")
+    forma = request.form.get("forma_pagamento", "").strip()
+    data_pagamento = request.form.get("data") or db.hoje()
+    try:
+        valor = float(valor_raw)
+    except ValueError:
+        flash("Valor inválido.", "erro")
+        return redirect(url_for("conta_pagar_detalhe", conta_id=conta_id))
+    conn = db.get_conn()
+    db.registrar_pagamento_saida(conn, conta_id, valor, forma, data_pagamento)
+    conn.close()
+    flash("Pagamento registrado — já entra no fluxo de caixa sozinho.", "ok")
+    return redirect(url_for("conta_pagar_detalhe", conta_id=conta_id))
+
+
+# ---------- Outras receitas ----------
+
+@app.route("/outras-receitas")
+def outras_receitas():
+    conn = db.get_conn()
+    lista = db.listar_outras_receitas(conn)
+    conn.close()
+    return render_template("outras_receitas.html", receitas=lista)
+
+
+@app.route("/outras-receitas/nova", methods=["POST"])
+def nova_outra_receita():
+    descricao = request.form.get("descricao", "").strip()
+    valor_raw = request.form.get("valor", "0").replace(",", ".")
+    data_receita = request.form.get("data") or db.hoje()
+    if not descricao:
+        flash("Descrição é obrigatória.", "erro")
+        return redirect(url_for("outras_receitas"))
+    try:
+        valor = float(valor_raw)
+    except ValueError:
+        flash("Valor inválido.", "erro")
+        return redirect(url_for("outras_receitas"))
+    conn = db.get_conn()
+    db.criar_outra_receita(conn, descricao, valor, data_receita)
+    conn.close()
+    flash("Receita lançada.", "ok")
+    return redirect(url_for("outras_receitas"))
+
+
+# ---------- Fluxo de caixa ----------
+
+@app.route("/fluxo-caixa")
+def fluxo_caixa():
+    conn = db.get_conn()
+    meses = db.fluxo_caixa_mensal(conn)
+    conn.close()
+    return render_template("fluxo_caixa.html", meses=meses)
+
+
+@app.route("/recebimentos-mensais")
+def recebimentos_mensais_view():
+    conn = db.get_conn()
+    meses = db.recebimentos_mensais(conn)
+    conn.close()
+    return render_template("recebimentos_mensais.html", meses=meses)
+
+
 if __name__ == "__main__":
     # Esse bloco só roda se alguém executar "python app.py" diretamente (ex.: teste
     # local). Hospedagem tipo PythonAnywhere importa o objeto `app` via WSGI e nunca

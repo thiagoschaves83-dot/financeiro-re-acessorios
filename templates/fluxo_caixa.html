@@ -1,0 +1,50 @@
+{% extends "base.html" %}
+{% block titulo %}Fluxo de caixa — Financeiro{% endblock %}
+{% block conteudo %}
+<h2>Fluxo de caixa</h2>
+<p style="color:#777; font-size:0.9rem;">
+  Visão mensal — "Vendas" é só quanto foi vendido no mês (mesmo que ainda não recebido); o dinheiro de
+  caixa de verdade é Recebimentos + Outras receitas menos as saídas. Toda baixa de venda ou pagamento
+  de conta já entra aqui sozinho, sem precisar lançar de novo.
+</p>
+
+<div class="card" style="display:flex; gap:24px; flex-wrap:wrap;">
+  <a class="btn btn-secundario" href="{{ url_for('contas_pagar') }}">💸 Contas a pagar</a>
+  <a class="btn btn-secundario" href="{{ url_for('outras_receitas') }}">➕ Outras receitas</a>
+  <a class="btn btn-secundario" href="{{ url_for('fornecedores') }}">🏭 Fornecedores</a>
+  <a class="btn btn-secundario" href="{{ url_for('recebimentos_mensais_view') }}">📆 Recebimentos mensais</a>
+</div>
+
+<div style="overflow-x:auto;">
+<table>
+  <tr>
+    <th>Mês</th>
+    <th>Vendas</th>
+    <th>Recebimentos</th>
+    <th>Outras receitas</th>
+    <th>Total entradas</th>
+    <th>Compras</th>
+    <th>Despesas</th>
+    <th>Outras despesas</th>
+    <th>Total saídas</th>
+    <th>Resultado</th>
+  </tr>
+  {% for m in meses %}
+  <tr>
+    <td>{{ m.mes[5:7] }}/{{ m.mes[0:4] }}</td>
+    <td>R$ {{ m.vendas | moeda_br }}</td>
+    <td>R$ {{ m.recebimentos | moeda_br }}</td>
+    <td>R$ {{ m.outras_receitas | moeda_br }}</td>
+    <td><strong>R$ {{ m.total_entradas | moeda_br }}</strong></td>
+    <td>R$ {{ m.compras | moeda_br }}</td>
+    <td>R$ {{ m.despesas | moeda_br }}</td>
+    <td>R$ {{ m.outras_despesas | moeda_br }}</td>
+    <td><strong>R$ {{ m.total_saidas | moeda_br }}</strong></td>
+    <td class="{{ 'saldo-zero' if m.resultado >= 0 else 'atraso' }}"><strong>R$ {{ m.resultado | moeda_br }}</strong></td>
+  </tr>
+  {% else %}
+  <tr><td colspan="10">Nenhuma movimentação registrada ainda.</td></tr>
+  {% endfor %}
+</table>
+</div>
+{% endblock %}

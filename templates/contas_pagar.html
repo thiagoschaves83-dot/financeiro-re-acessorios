@@ -1,0 +1,56 @@
+{% extends "base.html" %}
+{% block titulo %}Contas a pagar — Financeiro{% endblock %}
+{% block conteudo %}
+<h2>Contas a pagar</h2>
+<p style="color:#777; font-size:0.9rem;">Compras (mercadoria pra revender), despesas do negócio e outras saídas — o pagamento registrado aqui já alimenta o fluxo de caixa sozinho.</p>
+
+<div class="card">
+  <form method="post" action="{{ url_for('nova_conta_pagar') }}">
+    <label>Categoria</label>
+    <select name="categoria" id="campo-categoria-conta" required style="width:200px">
+      <option value="compra">Compra (mercadoria)</option>
+      <option value="despesa">Despesa</option>
+      <option value="outra_despesa">Outra despesa</option>
+    </select>
+
+    <label>Fornecedor (opcional)</label>
+    <select name="fornecedor_id" style="width:220px">
+      <option value="">— sem fornecedor —</option>
+      {% for f in fornecedores %}
+      <option value="{{ f.id }}">{{ f.nome }}</option>
+      {% endfor %}
+    </select>
+
+    <label>Descrição</label>
+    <input type="text" name="descricao" required placeholder="ex.: aluguel de agosto" style="width:300px">
+
+    <label>Valor total (R$)</label>
+    <input type="text" name="valor_total" required placeholder="300,00" style="width:120px">
+
+    <label>Data</label>
+    <input type="date" name="data">
+
+    <div style="margin-top:14px;">
+      <button class="btn" type="submit">+ Lançar conta</button>
+    </div>
+  </form>
+</div>
+
+<table>
+  <tr><th>Data</th><th>Categoria</th><th>Descrição</th><th>Fornecedor</th><th>Valor total</th><th>Pago</th><th>Saldo</th><th></th></tr>
+  {% for c in contas %}
+  <tr ondblclick="window.location='{{ url_for('conta_pagar_detalhe', conta_id=c.id) }}'" style="cursor:pointer" title="Clique duas vezes pra abrir">
+    <td>{{ c.data | data_br }}</td>
+    <td>{{ {"compra": "Compra", "despesa": "Despesa", "outra_despesa": "Outra despesa"}[c.categoria] }}</td>
+    <td>{{ c.descricao }}</td>
+    <td>{{ c.fornecedor_nome or "—" }}</td>
+    <td>R$ {{ c.valor_total | moeda_br }}</td>
+    <td>R$ {{ c.pago | moeda_br }}</td>
+    <td class="{{ 'saldo-zero' if c.saldo <= 0 else 'atraso' }}">R$ {{ c.saldo | moeda_br }}</td>
+    <td><a href="{{ url_for('conta_pagar_detalhe', conta_id=c.id) }}">ver →</a></td>
+  </tr>
+  {% else %}
+  <tr><td colspan="8">Nenhuma conta lançada ainda.</td></tr>
+  {% endfor %}
+</table>
+{% endblock %}

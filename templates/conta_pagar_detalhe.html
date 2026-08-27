@@ -1,0 +1,49 @@
+{% extends "base.html" %}
+{% block titulo %}{{ conta.descricao }} — Financeiro{% endblock %}
+{% block conteudo %}
+<p><a href="{{ url_for('contas_pagar') }}">← Contas a pagar</a></p>
+<h2>{{ conta.descricao }}</h2>
+
+<div class="card">
+  <p>
+    Categoria: <strong>{{ {"compra": "Compra", "despesa": "Despesa", "outra_despesa": "Outra despesa"}[conta.categoria] }}</strong>
+    {% if fornecedor %}&nbsp;·&nbsp; Fornecedor: <strong>{{ fornecedor.nome }}</strong>{% endif %}
+  </p>
+  <p>
+    Valor total: <strong>R$ {{ conta.valor_total | moeda_br }}</strong>
+    &nbsp;·&nbsp; Pago: <strong>R$ {{ pago | moeda_br }}</strong>
+    &nbsp;·&nbsp; Saldo: <strong class="{{ 'saldo-zero' if saldo <= 0 else 'atraso' }}">R$ {{ saldo | moeda_br }}</strong>
+  </p>
+</div>
+
+{% if saldo > 0 %}
+<div class="card">
+  <h3 style="margin-top:0;">Registrar pagamento</h3>
+  <form method="post" action="{{ url_for('novo_pagamento_saida', conta_id=conta.id) }}">
+    <label>Valor pago (R$)</label>
+    <input type="text" name="valor" required placeholder="100,00" style="width:120px">
+    <label>Forma de pagamento</label>
+    <input type="text" name="forma_pagamento" placeholder="Pix, dinheiro, cartão..." style="width:200px">
+    <label>Data do pagamento (deixe em branco se foi hoje)</label>
+    <input type="date" name="data">
+    <div style="margin-top:14px;">
+      <button class="btn" type="submit">💰 Registrar pagamento</button>
+    </div>
+  </form>
+</div>
+{% endif %}
+
+<h3>Pagamentos</h3>
+<table>
+  <tr><th>Data</th><th>Valor</th><th>Forma</th></tr>
+  {% for p in pagamentos %}
+  <tr>
+    <td>{{ p.data | data_br }}</td>
+    <td>R$ {{ p.valor | moeda_br }}</td>
+    <td>{{ p.forma_pagamento or "—" }}</td>
+  </tr>
+  {% else %}
+  <tr><td colspan="3">Nenhum pagamento registrado ainda.</td></tr>
+  {% endfor %}
+</table>
+{% endblock %}

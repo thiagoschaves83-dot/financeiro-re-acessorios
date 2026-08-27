@@ -84,6 +84,7 @@
   <a class="btn btn-zap" href="{{ link_zap }}" target="_blank">📲 Abrir WhatsApp do cliente</a>
   {% endif %}
   <button class="btn btn-print" onclick="window.print()">🖨️ Imprimir / salvar PDF</button>
+  <a class="btn btn-voltar" href="{{ url_for('carne', compra_id=compra.id) }}" target="_blank">📋 Ver / enviar carnê atualizado</a>
   <a class="btn btn-voltar" href="{{ url_for('compra_detalhe', compra_id=compra.id) }}">← voltar</a>
   <p class="rodape-nota" style="font-size:0.8rem; color:#999; margin-top:12px;">
     "Compartilhar imagem" gera a imagem deste comprovante e já abre o menu de compartilhar

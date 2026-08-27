@@ -387,19 +387,54 @@ def parcelas_compra(conn, compra_id):
 
 
 def parcelas_com_status(conn, compra_id):
-    """Marca cada parcela como paga ou não, pro carnê — como os pagamentos não são
-    amarrados a uma parcela específica (o Thiago só registra "paguei R$X"), consome
-    o total já pago das parcelas mais antigas pra mais novas, igual o cliente pagaria
-    na prática."""
+    """Marca cada parcela como paga e mostra o valor certo pra cada uma — como os
+    pagamentos não são amarrados a uma parcela específica (o Thiago só registra "paguei
+    R$X"), cada baixa (menos a entrada, que já não faz parte da divisão) preenche a
+    próxima parcela em aberto com o valor que realmente foi pago, não com o valor
+    previsto lá do cadastro da venda. O que ainda falta divide igual entre as parcelas
+    que sobraram, recalculando a cada baixa nova — assim o carnê nunca mostra um número
+    que não bate com o que o cliente ainda deve."""
     parcelas = parcelas_compra(conn, compra_id)
-    total_pago = sum(p["valor"] for p in pagamentos_compra(conn, compra_id))
+    if not parcelas:
+        return []
+    compra = buscar_compra(conn, compra_id)
+    entrada = 0.0
+    pagamentos_parcela = []
+    for p in pagamentos_compra(conn, compra_id):
+        if (p["forma_pagamento"] or "") == "Entrada":
+            entrada += p["valor"]
+        else:
+            pagamentos_parcela.append(p)
+    pagamentos_parcela.sort(key=lambda p: (p["data"], p["id"]))
+
+    n = len(parcelas)
+    valores = [p["valor_previsto"] for p in parcelas]
+    pagas = [False] * n
+    saldo_pendente = round(compra["valor_total"] - entrada, 2)
+    pendentes = n
+
+    for pagamento in pagamentos_parcela:
+        if pendentes == 0:
+            break  # pagou mais do que o previsto pras parcelas — sem slot pra encaixar
+        idx = pagas.index(False)
+        valores[idx] = pagamento["valor"]
+        pagas[idx] = True
+        saldo_pendente = round(saldo_pendente - pagamento["valor"], 2)
+        pendentes -= 1
+        if pendentes > 0:
+            cada = round(saldo_pendente / pendentes, 2)
+            restantes_vistos = 0
+            for k in range(n):
+                if not pagas[k]:
+                    restantes_vistos += 1
+                    if restantes_vistos == pendentes:
+                        valores[k] = round(saldo_pendente - cada * (pendentes - 1), 2)
+                    else:
+                        valores[k] = cada
+
     resultado = []
-    restante = total_pago
-    for p in parcelas:
-        paga = restante >= p["valor_previsto"] - 0.01
-        if paga:
-            restante = round(restante - p["valor_previsto"], 2)
-        resultado.append({**dict(p), "paga": paga})
+    for i, p in enumerate(parcelas):
+        resultado.append({**dict(p), "paga": pagas[i], "valor_previsto": valores[i]})
     return resultado
 
 

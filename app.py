@@ -217,7 +217,7 @@ def compra_detalhe(compra_id):
         return redirect(url_for("vendas"))
     cliente = db.buscar_cliente(conn, compra["cliente_id"])
     saldo, pago = db.saldo_compra(conn, compra)
-    parcelas = db.parcelas_compra(conn, compra_id)
+    parcelas = db.parcelas_com_status(conn, compra_id)
     pagamentos = db.pagamentos_compra(conn, compra_id)
     historico = db.historico_compra(conn, compra_id)
     conn.close()

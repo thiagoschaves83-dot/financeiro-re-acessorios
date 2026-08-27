@@ -30,9 +30,9 @@
 <div class="card">
   <h3 style="margin-top:0;">Parcelas previstas</h3>
   <table>
-    <tr><th>Nº</th><th>Valor previsto</th><th>Vencimento</th></tr>
+    <tr><th>Nº</th><th>Valor</th><th>Vencimento</th><th>Status</th></tr>
     {% for p in parcelas %}
-    <tr><td>{{ p.numero }}</td><td>R$ {{ p.valor_previsto | moeda_br }}</td><td>{{ p.vencimento | data_br }}</td></tr>
+    <tr><td>{{ p.numero }}</td><td>R$ {{ p.valor_previsto | moeda_br }}</td><td>{{ p.vencimento | data_br }}</td><td>{{ "✓ paga" if p.paga else "em aberto" }}</td></tr>
     {% endfor %}
   </table>
   <a class="btn" style="margin-top:10px;" href="{{ url_for('carne', compra_id=compra.id) }}" target="_blank">📋 Ver / enviar carnê</a>

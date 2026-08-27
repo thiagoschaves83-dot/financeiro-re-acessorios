@@ -57,7 +57,7 @@
 </head>
 <body>
 
-<div class="recibo">
+<div class="recibo" id="cartao-compartilhar">
   <div class="cabecalho">
     <img src="{{ url_for('static', filename='logo.jpg') }}" alt="Rê Acessórios">
     <h1>Rê Acessórios</h1>
@@ -79,17 +79,20 @@
 </div>
 
 <div class="acoes">
+  <button class="btn btn-print" id="btn-compartilhar" onclick="compartilharImagem('cartao-compartilhar', 'comprovante-{{ cliente.nome }}.png')">📷 Compartilhar imagem</button>
   {% if link_zap %}
   <a class="btn btn-zap" href="{{ link_zap }}" target="_blank">📲 Abrir WhatsApp do cliente</a>
   {% endif %}
   <button class="btn btn-print" onclick="window.print()">🖨️ Imprimir / salvar PDF</button>
   <a class="btn btn-voltar" href="{{ url_for('compra_detalhe', compra_id=compra.id) }}">← voltar</a>
   <p class="rodape-nota" style="font-size:0.8rem; color:#999; margin-top:12px;">
-    O botão do WhatsApp abre a conversa já com o cliente certo e uma mensagem pronta —
-    mas não anexa a imagem sozinho. Tire um print deste comprovante (ou salve em PDF)
-    e anexe na conversa que vai abrir.
+    "Compartilhar imagem" gera a imagem deste comprovante e já abre o menu de compartilhar
+    do celular — escolha o WhatsApp e o cliente. O botão verde abre a conversa certa com a
+    mensagem pronta, mas sem anexar a imagem sozinho (o WhatsApp não permite isso por link).
   </p>
 </div>
 
+<script src="{{ url_for('static', filename='html2canvas.min.js') }}"></script>
+<script src="{{ url_for('static', filename='compartilhar.js') }}"></script>
 </body>
 </html>

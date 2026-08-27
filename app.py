@@ -204,7 +204,7 @@ def nova_compra(cliente_id):
     conn = db.get_conn()
     compra_id = db.criar_compra(conn, cliente_id, descricao, valor_total, datas_parcelas, entrada=entrada, valores_parcelas=valores_parcelas)
     conn.close()
-    return redirect(url_for("compra_detalhe", compra_id=compra_id))
+    return redirect(url_for("carne", compra_id=compra_id))
 
 
 @app.route("/compras/<int:compra_id>")
@@ -432,7 +432,7 @@ def nova_venda():
     compra_id = db.criar_compra(conn, cliente_id, descricao, valor_total, datas_parcelas, entrada=entrada, valores_parcelas=valores_parcelas)
     conn.close()
     flash(aviso, "ok")
-    return redirect(url_for("compra_detalhe", compra_id=compra_id))
+    return redirect(url_for("carne", compra_id=compra_id))
 
 
 # ---------- Produtos (sincronizados do catálogo do Cláudio) ----------

@@ -362,6 +362,48 @@ def editar_parcela(conn, parcela_id, novo_vencimento, novo_valor_previsto):
     conn.commit()
 
 
+def redefinir_parcelas(conn, compra_id, datas_parcelas, valores_parcelas=None):
+    """Troca a grade de parcelas inteira (usado na edição da compra, quando o Thiago
+    muda a quantidade de parcelas — ex.: de 3 pra 4). Como pagamento não é amarrado a
+    uma parcela específica (parcelas_com_status recalcula tudo por cima a partir do
+    total pago), apagar e recriar as parcelas não perde nada do que já foi pago."""
+    compra = buscar_compra(conn, compra_id)
+    entrada = sum(
+        p["valor"] for p in pagamentos_compra(conn, compra_id)
+        if (p["forma_pagamento"] or "") == "Entrada"
+    )
+    numero_antigo = conn.execute(
+        "SELECT COUNT(*) AS n FROM parcelas WHERE compra_id = ?", (compra_id,)
+    ).fetchone()["n"]
+    # alguns pagamentos antigos (importados) ficaram amarrados a uma parcela
+    # específica — desamarra antes de apagar, senão a exclusão trava (e o status
+    # de pago/aberto nunca usou esse vínculo mesmo, é recalculado à parte)
+    conn.execute("UPDATE pagamentos SET parcela_id = NULL WHERE compra_id = ?", (compra_id,))
+    conn.execute("DELETE FROM parcelas WHERE compra_id = ?", (compra_id,))
+    valores_parcelas = valores_parcelas or []
+    pares = []
+    for i, venc in enumerate(datas_parcelas):
+        if not venc:
+            continue
+        valor = valores_parcelas[i] if i < len(valores_parcelas) else None
+        pares.append((venc, valor))
+    if pares:
+        restante = round(compra["valor_total"] - entrada, 2)
+        valor_padrao = round(restante / len(pares), 2)
+        for i, (venc, valor) in enumerate(pares):
+            valor_final = valor if valor is not None else valor_padrao
+            conn.execute(
+                "INSERT INTO parcelas (compra_id, numero, valor_previsto, vencimento) VALUES (?, ?, ?, ?)",
+                (compra_id, i + 1, valor_final, venc),
+            )
+    if numero_antigo != len(pares):
+        conn.execute(
+            "INSERT INTO historico_edicoes (compra_id, campo, valor_antigo, valor_novo, data) VALUES (?, ?, ?, ?, ?)",
+            (compra_id, "numero_parcelas", str(numero_antigo), str(len(pares)), hoje()),
+        )
+    conn.commit()
+
+
 def excluir_compra(conn, compra_id):
     """Exclui a compra inteira e tudo que pertence só a ela (parcelas, histórico de
     edição, e qualquer pagamento remanescente). Quem chama já garantiu que não tem
@@ -417,20 +459,32 @@ def parcelas_com_status(conn, compra_id):
         if pendentes == 0:
             break  # pagou mais do que o previsto pras parcelas — sem slot pra encaixar
         idx = pagas.index(False)
+        if pendentes == 1:
+            # última parcela em aberto: só marca como paga se esse pagamento realmente
+            # fechar o que falta — senão fica em aberto mostrando o saldo verdadeiro,
+            # pra nunca dar a entender que já quitou sem ter quitado
+            if pagamento["valor"] + 0.01 >= saldo_pendente:
+                valores[idx] = saldo_pendente
+                pagas[idx] = True
+                saldo_pendente = 0.0
+                pendentes = 0
+            else:
+                saldo_pendente = round(saldo_pendente - pagamento["valor"], 2)
+                valores[idx] = saldo_pendente
+            continue
         valores[idx] = pagamento["valor"]
         pagas[idx] = True
         saldo_pendente = round(saldo_pendente - pagamento["valor"], 2)
         pendentes -= 1
-        if pendentes > 0:
-            cada = round(saldo_pendente / pendentes, 2)
-            restantes_vistos = 0
-            for k in range(n):
-                if not pagas[k]:
-                    restantes_vistos += 1
-                    if restantes_vistos == pendentes:
-                        valores[k] = round(saldo_pendente - cada * (pendentes - 1), 2)
-                    else:
-                        valores[k] = cada
+        cada = round(saldo_pendente / pendentes, 2)
+        restantes_vistos = 0
+        for k in range(n):
+            if not pagas[k]:
+                restantes_vistos += 1
+                if restantes_vistos == pendentes:
+                    valores[k] = round(saldo_pendente - cada * (pendentes - 1), 2)
+                else:
+                    valores[k] = cada
 
     resultado = []
     for i, p in enumerate(parcelas):

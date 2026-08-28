@@ -249,19 +249,23 @@ def editar_compra(compra_id):
             flash("Descrição do produto é obrigatória.", "erro")
             return redirect(url_for("editar_compra", compra_id=compra_id))
         db.editar_compra(conn, compra_id, novo_valor, nova_descricao)
-        for parcela in db.parcelas_compra(conn, compra_id):
-            novo_vencimento = request.form.get(f"parcela_vencimento_{parcela['id']}")
-            novo_valor_previsto_raw = request.form.get(f"parcela_valor_{parcela['id']}")
-            if novo_vencimento and novo_valor_previsto_raw:
-                novo_valor_previsto = float(novo_valor_previsto_raw.replace(",", "."))
-                db.editar_parcela(conn, parcela["id"], novo_vencimento, novo_valor_previsto)
+        datas_parcelas = request.form.getlist("data_parcela")
+        valores_parcelas = [
+            float(v.replace(",", ".")) if v.strip() else None
+            for v in request.form.getlist("valor_parcela")
+        ]
+        db.redefinir_parcelas(conn, compra_id, datas_parcelas, valores_parcelas)
         conn.close()
-        flash("Compra atualizada — o saldo já recalculou sozinho.", "ok")
+        flash("Compra atualizada — o saldo e as parcelas já recalcularam sozinhos.", "ok")
         return redirect(url_for("compra_detalhe", compra_id=compra_id))
     produtos = db.listar_produtos(conn)
     parcelas = db.parcelas_compra(conn, compra_id)
+    entrada = sum(
+        p["valor"] for p in db.pagamentos_compra(conn, compra_id)
+        if (p["forma_pagamento"] or "") == "Entrada"
+    )
     conn.close()
-    return render_template("editar_compra.html", compra=compra, produtos=produtos, parcelas=parcelas)
+    return render_template("editar_compra.html", compra=compra, produtos=produtos, parcelas=parcelas, entrada=entrada)
 
 
 @app.route("/compras/<int:compra_id>/excluir", methods=["POST"])

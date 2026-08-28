@@ -36,19 +36,17 @@
       Essa mudança fica registrada no histórico da compra.
     </p>
 
-    {% if parcelas %}
-    <label style="margin-top:14px; display:block;">Datas de vencimento das parcelas</label>
-    <table style="width:auto;">
-      <tr><th>Nº</th><th>Vencimento</th><th>Valor previsto (R$)</th></tr>
-      {% for p in parcelas %}
-      <tr>
-        <td>{{ p.numero }}</td>
-        <td><input type="date" name="parcela_vencimento_{{ p.id }}" value="{{ p.vencimento }}"></td>
-        <td><input type="text" name="parcela_valor_{{ p.id }}" value="{{ "%.2f"|format(p.valor_previsto) }}" style="width:100px"></td>
-      </tr>
-      {% endfor %}
-    </table>
+    {% if entrada > 0 %}
+    <p style="font-size:0.85rem; color:#888;">Entrada já paga na hora da venda: R$ {{ "%.2f"|format(entrada) }} — as parcelas abaixo dividem só o restante.</p>
     {% endif %}
+    <input type="hidden" id="campo-entrada-editar" value="{{ "%.2f"|format(entrada) }}">
+
+    <label>Número de parcelas (0 = à vista)</label>
+    <input type="number" id="num-parcelas-editar" value="{{ parcelas|length }}" min="0" style="width:80px"
+           oninput="gerarCaixinhasParcelas('num-parcelas-editar', 'caixinhas-parcelas-editar', 'campo-valor-editar', 'campo-entrada-editar')">
+    <p style="font-size:0.85rem; color:#888;">Mudar esse número reconstrói a grade de parcelas abaixo, dividindo o restante igualzinho — pode ajustar os valores na mão depois.</p>
+
+    <div id="caixinhas-parcelas-editar" style="display:flex; flex-direction:column; gap:10px; margin-top:6px;"></div>
 
     <button class="btn" type="submit" style="margin-top:14px;">Salvar</button>
   </form>
@@ -80,5 +78,20 @@ inicializarSeletorProduto({
   salvarNovo: 'btn-salvar-produto-novo-editar',
   msgNovo: 'msg-produto-novo-editar',
 });
+
+const PARCELAS_EXISTENTES = [
+  {% for p in parcelas %}
+  { vencimento: {{ p.vencimento | tojson }}, valor: {{ p.valor_previsto | tojson }} },
+  {% endfor %}
+];
+gerarCaixinhasParcelas('num-parcelas-editar', 'caixinhas-parcelas-editar', 'campo-valor-editar', 'campo-entrada-editar');
+(function seedParcelasExistentes() {
+  const linhas = document.querySelectorAll('#caixinhas-parcelas-editar .linha-parcela');
+  linhas.forEach((linha, i) => {
+    if (!PARCELAS_EXISTENTES[i]) return;
+    linha.querySelector('input[type="date"]').value = PARCELAS_EXISTENTES[i].vencimento;
+    linha.querySelector('.valor-parcela-input').value = PARCELAS_EXISTENTES[i].valor.toFixed(2).replace('.', ',');
+  });
+})();
 </script>
 {% endblock %}

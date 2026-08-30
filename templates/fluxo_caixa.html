@@ -17,34 +17,43 @@
   <a class="btn btn-secundario" href="{{ url_for('despesas_recorrentes') }}">🔁 Despesas recorrentes</a>
 </div>
 
-<div style="overflow-x:auto;">
-<table>
+<style>
+  .tabela-fluxo-wrap { overflow-x: auto; }
+  .tabela-fluxo { width: max-content; min-width: 100%; }
+  .tabela-fluxo th, .tabela-fluxo td { white-space: nowrap; padding: 8px 14px; text-align: right; font-size: 0.88rem; }
+  .tabela-fluxo th:first-child, .tabela-fluxo td:first-child { text-align: left; }
+  .tabela-fluxo .grupo-entrada { border-left: 2px solid var(--rosa); }
+  .tabela-fluxo .grupo-saida { border-left: 2px solid var(--carmim); }
+  .tabela-fluxo .col-total { background: var(--fundo); }
+</style>
+<div class="tabela-fluxo-wrap">
+<table class="tabela-fluxo">
   <tr>
     <th>Mês</th>
-    <th>Vendas</th>
+    <th class="grupo-entrada">Vendas</th>
     <th>Recebimentos</th>
     <th>Outras receitas</th>
-    <th>Total entradas</th>
-    <th>Compras</th>
+    <th class="col-total">Total entradas</th>
+    <th class="grupo-saida">Compras</th>
     <th>Despesas</th>
     <th>Outras despesas</th>
     <th>Retiradas</th>
-    <th>Total saídas</th>
-    <th>Resultado</th>
+    <th class="col-total">Total saídas</th>
+    <th class="col-total">Resultado</th>
   </tr>
   {% for m in meses %}
   <tr>
     <td>{{ m.mes[5:7] }}/{{ m.mes[0:4] }}</td>
-    <td>R$ {{ m.vendas | moeda_br }}</td>
+    <td class="grupo-entrada">R$ {{ m.vendas | moeda_br }}</td>
     <td>R$ {{ m.recebimentos | moeda_br }}</td>
     <td>R$ {{ m.outras_receitas | moeda_br }}</td>
-    <td><strong>R$ {{ m.total_entradas | moeda_br }}</strong></td>
-    <td>R$ {{ m.compras | moeda_br }}</td>
+    <td class="col-total"><strong>R$ {{ m.total_entradas | moeda_br }}</strong></td>
+    <td class="grupo-saida">R$ {{ m.compras | moeda_br }}</td>
     <td>R$ {{ m.despesas | moeda_br }}</td>
     <td>R$ {{ m.outras_despesas | moeda_br }}</td>
     <td>R$ {{ m.retiradas | moeda_br }}</td>
-    <td><strong>R$ {{ m.total_saidas | moeda_br }}</strong></td>
-    <td class="{{ 'saldo-zero' if m.resultado >= 0 else 'atraso' }}"><strong>R$ {{ m.resultado | moeda_br }}</strong></td>
+    <td class="col-total"><strong>R$ {{ m.total_saidas | moeda_br }}</strong></td>
+    <td class="col-total {{ 'saldo-zero' if m.resultado >= 0 else 'atraso' }}"><strong>R$ {{ m.resultado | moeda_br }}</strong></td>
   </tr>
   {% else %}
   <tr><td colspan="11">Nenhuma movimentação registrada ainda.</td></tr>

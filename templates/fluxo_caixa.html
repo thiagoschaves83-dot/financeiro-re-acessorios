@@ -13,6 +13,8 @@
   <a class="btn btn-secundario" href="{{ url_for('outras_receitas') }}">➕ Outras receitas</a>
   <a class="btn btn-secundario" href="{{ url_for('fornecedores') }}">🏭 Fornecedores</a>
   <a class="btn btn-secundario" href="{{ url_for('recebimentos_mensais_view') }}">📆 Recebimentos mensais</a>
+  <a class="btn btn-secundario" href="{{ url_for('contas_a_pagar_mensais_view') }}">📆 Contas a pagar mensais</a>
+  <a class="btn btn-secundario" href="{{ url_for('despesas_recorrentes') }}">🔁 Despesas recorrentes</a>
 </div>
 
 <div style="overflow-x:auto;">
@@ -26,6 +28,7 @@
     <th>Compras</th>
     <th>Despesas</th>
     <th>Outras despesas</th>
+    <th>Retiradas</th>
     <th>Total saídas</th>
     <th>Resultado</th>
   </tr>
@@ -39,11 +42,12 @@
     <td>R$ {{ m.compras | moeda_br }}</td>
     <td>R$ {{ m.despesas | moeda_br }}</td>
     <td>R$ {{ m.outras_despesas | moeda_br }}</td>
+    <td>R$ {{ m.retiradas | moeda_br }}</td>
     <td><strong>R$ {{ m.total_saidas | moeda_br }}</strong></td>
     <td class="{{ 'saldo-zero' if m.resultado >= 0 else 'atraso' }}"><strong>R$ {{ m.resultado | moeda_br }}</strong></td>
   </tr>
   {% else %}
-  <tr><td colspan="10">Nenhuma movimentação registrada ainda.</td></tr>
+  <tr><td colspan="11">Nenhuma movimentação registrada ainda.</td></tr>
   {% endfor %}
 </table>
 </div>

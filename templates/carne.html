@@ -25,6 +25,11 @@
   .corpo { padding: 20px 24px; }
   .linha { display: flex; justify-content: space-between; padding: 6px 0; border-bottom: 1px dashed #eee; font-size: 0.92rem; }
   .linha strong { color: var(--carmim-escuro); text-align: right; }
+  .lista-itens { padding: 8px 0; border-bottom: 1px dashed #eee; }
+  .lista-itens-titulo { font-size: 0.92rem; color: #333; }
+  .linha-item { display: flex; justify-content: space-between; gap: 10px; padding: 5px 0 5px 12px; font-size: 0.88rem; }
+  .linha-item span { color: #555; }
+  .linha-item strong { color: var(--carmim-escuro); white-space: nowrap; }
   .valor-grande { text-align: center; font-size: 1.6rem; font-weight: 800; color: var(--carmim-escuro); margin: 14px 0; }
   .rodape { text-align: center; padding: 16px; font-size: 0.8rem; color: #999; }
 
@@ -92,7 +97,19 @@
   </div>
   <div class="corpo">
     <div class="linha"><span>Cliente</span><strong>{{ cliente.nome }}</strong></div>
+    {% if itens %}
+    <div class="lista-itens">
+      <span class="lista-itens-titulo">Produtos</span>
+      {% for item in itens %}
+      <div class="linha-item">
+        <span>{{ item.descricao }}</span>
+        <strong>R$ {{ item.valor | moeda_br }}</strong>
+      </div>
+      {% endfor %}
+    </div>
+    {% else %}
     <div class="linha"><span>Produto</span><strong>{{ compra.descricao }}</strong></div>
+    {% endif %}
     <div class="linha"><span>Data da compra</span><strong>{{ compra.data | data_br }}</strong></div>
     <div class="valor-grande">R$ {{ compra.valor_total | moeda_br }}</div>
     <div class="linha"><span>Saldo em aberto</span>

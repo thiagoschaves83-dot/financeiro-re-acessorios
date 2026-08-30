@@ -187,7 +187,7 @@ function _criarBlocoItemProduto(container, itens, aoMudar) {
       <input type="text" id="item-produto-${id}" autocomplete="off" style="width:400px" placeholder="Busque por nome, código ou marca do catálogo (sem acento já acha), ou digite livre">
       <div class="autocomplete-dropdown" id="item-dropdown-${id}"></div>
     </div>
-    <input type="hidden" id="item-descricao-${id}" data-papel="descricao">
+    <input type="hidden" id="item-descricao-${id}" name="item_descricao" data-papel="descricao">
     <div style="margin:4px 0 0;">
       <button type="button" id="item-toggle-novo-${id}" class="btn btn-secundario" style="font-size:0.8rem; padding:5px 10px;">Não achei o produto — cadastrar novo</button>
     </div>
@@ -206,7 +206,7 @@ function _criarBlocoItemProduto(container, itens, aoMudar) {
       </div>
     </div>
     <label>Valor deste produto (R$)</label>
-    <input type="text" id="item-valor-${id}" data-papel="valor" placeholder="300,00" style="width:120px">
+    <input type="text" id="item-valor-${id}" name="item_valor" data-papel="valor" placeholder="300,00" style="width:120px">
     <button type="button" id="item-remover-${id}" style="margin-left:10px; background:none; border:none; color:var(--carmim); cursor:pointer; font-size:0.85rem;">✕ remover produto</button>
   `;
   container.appendChild(bloco); // precisa estar na página antes de buscar os ids por dentro

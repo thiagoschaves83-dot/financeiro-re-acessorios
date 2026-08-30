@@ -6,8 +6,9 @@
 
 <div class="card">
   <p>
-    Categoria: <strong>{{ {"compra": "Compra", "despesa": "Despesa", "outra_despesa": "Outra despesa"}[conta.categoria] }}</strong>
+    Categoria: <strong>{{ {"compra": "Compra", "despesa": "Despesa", "outra_despesa": "Outra despesa", "retirada": "Retirada do dono"}[conta.categoria] }}</strong>
     {% if fornecedor %}&nbsp;·&nbsp; Fornecedor: <strong>{{ fornecedor.nome }}</strong>{% endif %}
+    {% if conta.vencimento %}&nbsp;·&nbsp; Vencimento: <strong>{{ conta.vencimento | data_br }}</strong>{% endif %}
   </p>
   <p>
     Valor total: <strong>R$ {{ conta.valor_total | moeda_br }}</strong>

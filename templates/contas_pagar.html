@@ -2,7 +2,12 @@
 {% block titulo %}Contas a pagar — Financeiro{% endblock %}
 {% block conteudo %}
 <h2>Contas a pagar</h2>
-<p style="color:#777; font-size:0.9rem;">Compras (mercadoria pra revender), despesas do negócio e outras saídas — o pagamento registrado aqui já alimenta o fluxo de caixa sozinho.</p>
+<p style="color:#777; font-size:0.9rem;">Compras (mercadoria pra revender), despesas do negócio, retiradas do dono e outras saídas — o pagamento registrado aqui já alimenta o fluxo de caixa sozinho.</p>
+
+<div class="card" style="display:flex; gap:10px; flex-wrap:wrap;">
+  <a class="btn btn-secundario" href="{{ url_for('despesas_recorrentes') }}">🔁 Despesas recorrentes</a>
+  <a class="btn btn-secundario" href="{{ url_for('contas_a_pagar_mensais_view') }}">📆 Contas a pagar mensais</a>
+</div>
 
 <div class="card">
   <form method="post" action="{{ url_for('nova_conta_pagar') }}">
@@ -11,6 +16,7 @@
       <option value="compra">Compra (mercadoria)</option>
       <option value="despesa">Despesa</option>
       <option value="outra_despesa">Outra despesa</option>
+      <option value="retirada">Retirada do dono</option>
     </select>
 
     <label>Fornecedor (opcional)</label>
@@ -27,8 +33,11 @@
     <label>Valor total (R$)</label>
     <input type="text" name="valor_total" required placeholder="300,00" style="width:120px">
 
-    <label>Data</label>
+    <label>Data (quando foi lançada)</label>
     <input type="date" name="data">
+
+    <label>Vencimento (opcional — pra aparecer projetada em Contas a pagar mensais antes de pagar)</label>
+    <input type="date" name="vencimento">
 
     <div style="margin-top:14px;">
       <button class="btn" type="submit">+ Lançar conta</button>
@@ -41,7 +50,7 @@
   {% for c in contas %}
   <tr ondblclick="window.location='{{ url_for('conta_pagar_detalhe', conta_id=c.id) }}'" style="cursor:pointer" title="Clique duas vezes pra abrir">
     <td>{{ c.data | data_br }}</td>
-    <td>{{ {"compra": "Compra", "despesa": "Despesa", "outra_despesa": "Outra despesa"}[c.categoria] }}</td>
+    <td>{{ {"compra": "Compra", "despesa": "Despesa", "outra_despesa": "Outra despesa", "retirada": "Retirada do dono"}[c.categoria] }}</td>
     <td>{{ c.descricao }}</td>
     <td>{{ c.fornecedor_nome or "—" }}</td>
     <td>R$ {{ c.valor_total | moeda_br }}</td>

@@ -1,0 +1,24 @@
+{% extends "base.html" %}
+{% block titulo %}Contas a pagar mensais — Financeiro{% endblock %}
+{% block conteudo %}
+<p><a href="{{ url_for('fluxo_caixa') }}">← Fluxo de caixa</a></p>
+<h2>Contas a pagar mensais</h2>
+<p style="color:#777; font-size:0.9rem;">
+  Por mês de vencimento da conta: quanto está previsto pagar, quanto já foi pago e o que ainda está pendente.
+  Só entram contas com vencimento marcado — as despesas recorrentes (retirada, mensalidade fixa) já entram sozinhas.
+</p>
+
+<table>
+  <tr><th>Mês</th><th>Previsto</th><th>Pago</th><th>Pendente</th></tr>
+  {% for m in meses %}
+  <tr>
+    <td>{{ m.mes[5:7] }}/{{ m.mes[0:4] }}</td>
+    <td>R$ {{ m.previsto | moeda_br }}</td>
+    <td>R$ {{ m.pago | moeda_br }}</td>
+    <td class="{{ 'saldo-zero' if m.pendente <= 0 else 'atraso' }}">R$ {{ m.pendente | moeda_br }}</td>
+  </tr>
+  {% else %}
+  <tr><td colspan="4">Nenhuma conta com vencimento marcado ainda.</td></tr>
+  {% endfor %}
+</table>
+{% endblock %}

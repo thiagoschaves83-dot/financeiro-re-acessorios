@@ -190,6 +190,21 @@ def editar_cliente(cliente_id):
 
 # ---------- Compras ----------
 
+def _itens_do_form():
+    """Lê os produtos de uma venda/compra com vários itens (nome + valor de cada um,
+    na mesma ordem) — usado pro carnê mostrar em lista em vez de um texto só."""
+    descricoes = request.form.getlist("item_descricao")
+    valores = request.form.getlist("item_valor")
+    itens = []
+    for i, desc in enumerate(descricoes):
+        if not desc.strip():
+            continue
+        valor_raw = valores[i] if i < len(valores) else ""
+        valor = float(valor_raw.replace(",", ".")) if valor_raw.strip() else 0
+        itens.append({"descricao": desc.strip(), "valor": valor})
+    return itens
+
+
 @app.route("/clientes/<int:cliente_id>/compras/nova", methods=["POST"])
 def nova_compra(cliente_id):
     descricao = request.form.get("descricao", "").strip()
@@ -201,8 +216,9 @@ def nova_compra(cliente_id):
         float(v.replace(",", ".")) if v.strip() else None
         for v in request.form.getlist("valor_parcela")
     ]
+    itens = _itens_do_form()
     conn = db.get_conn()
-    compra_id = db.criar_compra(conn, cliente_id, descricao, valor_total, datas_parcelas, entrada=entrada, valores_parcelas=valores_parcelas)
+    compra_id = db.criar_compra(conn, cliente_id, descricao, valor_total, datas_parcelas, entrada=entrada, valores_parcelas=valores_parcelas, itens=itens)
     conn.close()
     return redirect(url_for("carne", compra_id=compra_id))
 
@@ -220,6 +236,7 @@ def compra_detalhe(compra_id):
     parcelas = db.parcelas_com_status(conn, compra_id)
     pagamentos = db.pagamentos_compra(conn, compra_id)
     historico = db.historico_compra(conn, compra_id)
+    itens = db.itens_compra_para_exibir(conn, compra)
     conn.close()
     return render_template(
         "compra_detalhe.html",
@@ -230,6 +247,7 @@ def compra_detalhe(compra_id):
         parcelas=parcelas,
         pagamentos=pagamentos,
         historico=historico,
+        itens=itens,
     )
 
 
@@ -366,6 +384,7 @@ def carne(compra_id):
     cliente = db.buscar_cliente(conn, compra["cliente_id"])
     parcelas = db.parcelas_com_status(conn, compra_id)
     saldo, pago = db.saldo_compra(conn, compra)
+    itens = db.itens_compra_para_exibir(conn, compra)
     conn.close()
     link_zap = whatsapp.link_carne(cliente["telefone"], cliente["nome"], compra["descricao"], compra["valor_total"])
     return render_template(
@@ -375,6 +394,7 @@ def carne(compra_id):
         parcelas=parcelas,
         saldo=saldo,
         pago=pago,
+        itens=itens,
         link_zap=link_zap,
     )
 
@@ -433,7 +453,8 @@ def nova_venda():
         cliente_id = db.criar_cliente(conn, nome_cliente, telefone)
         aviso = f"Cliente novo criado: {nome_cliente}. Se já existia com outro nome, corrija pra não duplicar."
 
-    compra_id = db.criar_compra(conn, cliente_id, descricao, valor_total, datas_parcelas, entrada=entrada, valores_parcelas=valores_parcelas)
+    itens = _itens_do_form()
+    compra_id = db.criar_compra(conn, cliente_id, descricao, valor_total, datas_parcelas, entrada=entrada, valores_parcelas=valores_parcelas, itens=itens)
     conn.close()
     flash(aviso, "ok")
     return redirect(url_for("carne", compra_id=compra_id))
@@ -665,11 +686,12 @@ def novo_fornecedor():
     return redirect(url_for("fornecedores"))
 
 
-# ---------- Contas a pagar (compras, despesas, outras despesas) ----------
+# ---------- Contas a pagar (compras, despesas, outras despesas, retiradas) ----------
 
 @app.route("/contas-pagar")
 def contas_pagar():
     conn = db.get_conn()
+    db.gerar_ocorrencias_recorrentes(conn)
     lista = db.listar_contas_pagar(conn)
     fornecedores_lista = db.listar_fornecedores(conn)
     conn.close()
@@ -682,10 +704,11 @@ def nova_conta_pagar():
     descricao = request.form.get("descricao", "").strip()
     valor_total_raw = request.form.get("valor_total", "0").replace(",", ".")
     data_conta = request.form.get("data") or db.hoje()
+    vencimento = request.form.get("vencimento", "").strip() or None
     fornecedor_id_raw = request.form.get("fornecedor_id", "").strip()
     fornecedor_id = int(fornecedor_id_raw) if fornecedor_id_raw else None
 
-    if categoria not in ("compra", "despesa", "outra_despesa"):
+    if categoria not in ("compra", "despesa", "outra_despesa", "retirada"):
         flash("Categoria inválida.", "erro")
         return redirect(url_for("contas_pagar"))
     if not descricao:
@@ -698,7 +721,7 @@ def nova_conta_pagar():
         return redirect(url_for("contas_pagar"))
 
     conn = db.get_conn()
-    conta_id = db.criar_conta_pagar(conn, categoria, descricao, valor_total, data_conta, fornecedor_id=fornecedor_id)
+    conta_id = db.criar_conta_pagar(conn, categoria, descricao, valor_total, data_conta, fornecedor_id=fornecedor_id, vencimento=vencimento)
     conn.close()
     flash("Conta lançada.", "ok")
     return redirect(url_for("conta_pagar_detalhe", conta_id=conta_id))
@@ -778,6 +801,7 @@ def nova_outra_receita():
 @app.route("/fluxo-caixa")
 def fluxo_caixa():
     conn = db.get_conn()
+    db.gerar_ocorrencias_recorrentes(conn)
     meses = db.fluxo_caixa_mensal(conn)
     conn.close()
     return render_template("fluxo_caixa.html", meses=meses)
@@ -789,6 +813,80 @@ def recebimentos_mensais_view():
     meses = db.recebimentos_mensais(conn)
     conn.close()
     return render_template("recebimentos_mensais.html", meses=meses)
+
+
+@app.route("/contas-a-pagar-mensais")
+def contas_a_pagar_mensais_view():
+    conn = db.get_conn()
+    db.gerar_ocorrencias_recorrentes(conn)
+    meses = db.contas_a_pagar_mensais(conn)
+    conn.close()
+    return render_template("contas_a_pagar_mensais.html", meses=meses)
+
+
+# ---------- Despesas recorrentes (retirada do dono, mensalidade fixa, etc.) ----------
+
+@app.route("/despesas-recorrentes")
+def despesas_recorrentes():
+    conn = db.get_conn()
+    lista = db.listar_despesas_recorrentes(conn)
+    conn.close()
+    return render_template("despesas_recorrentes.html", recorrentes=lista)
+
+
+@app.route("/despesas-recorrentes/nova", methods=["POST"])
+def nova_despesa_recorrente():
+    descricao = request.form.get("descricao", "").strip()
+    categoria = request.form.get("categoria", "").strip()
+    valor_raw = request.form.get("valor", "0").replace(",", ".")
+    frequencia = request.form.get("frequencia", "").strip()
+    data_inicio = request.form.get("data_inicio") or db.hoje()
+
+    if categoria not in ("compra", "despesa", "outra_despesa", "retirada"):
+        flash("Categoria inválida.", "erro")
+        return redirect(url_for("despesas_recorrentes"))
+    if frequencia not in ("semanal", "quinzenal", "mensal", "semestral"):
+        flash("Frequência inválida.", "erro")
+        return redirect(url_for("despesas_recorrentes"))
+    if not descricao:
+        flash("Descrição é obrigatória.", "erro")
+        return redirect(url_for("despesas_recorrentes"))
+    try:
+        valor = float(valor_raw)
+    except ValueError:
+        flash("Valor inválido.", "erro")
+        return redirect(url_for("despesas_recorrentes"))
+
+    conn = db.get_conn()
+    db.criar_despesa_recorrente(conn, descricao, categoria, valor, frequencia, data_inicio)
+    db.gerar_ocorrencias_recorrentes(conn)
+    conn.close()
+    flash("Despesa recorrente cadastrada — já projetada no fluxo de caixa e em Contas a Pagar.", "ok")
+    return redirect(url_for("despesas_recorrentes"))
+
+
+@app.route("/despesas-recorrentes/<int:rec_id>/editar", methods=["POST"])
+def editar_despesa_recorrente(rec_id):
+    novo_valor_raw = request.form.get("valor", "0").replace(",", ".")
+    try:
+        novo_valor = float(novo_valor_raw)
+    except ValueError:
+        flash("Valor inválido.", "erro")
+        return redirect(url_for("despesas_recorrentes"))
+    conn = db.get_conn()
+    db.editar_despesa_recorrente(conn, rec_id, novo_valor)
+    conn.close()
+    flash("Valor atualizado — vale a partir das próximas ocorrências ainda não pagas.", "ok")
+    return redirect(url_for("despesas_recorrentes"))
+
+
+@app.route("/despesas-recorrentes/<int:rec_id>/encerrar", methods=["POST"])
+def encerrar_despesa_recorrente(rec_id):
+    conn = db.get_conn()
+    db.encerrar_despesa_recorrente(conn, rec_id)
+    conn.close()
+    flash("Recorrência encerrada — não gera mais ocorrências novas.", "ok")
+    return redirect(url_for("despesas_recorrentes"))
 
 
 if __name__ == "__main__":

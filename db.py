@@ -1,9 +1,10 @@
 """Banco de dados do app financeiro da Rê Acessórios — SQLite em arquivo único."""
+import calendar
 import re
 import sqlite3
 import unicodedata
 from pathlib import Path
-from datetime import date
+from datetime import date, timedelta
 
 DB_PATH = Path(__file__).parent / "dados.db"
 
@@ -21,6 +22,13 @@ CREATE TABLE IF NOT EXISTS compras (
     descricao TEXT NOT NULL,
     valor_total REAL NOT NULL,
     data TEXT NOT NULL
+);
+
+CREATE TABLE IF NOT EXISTS itens_compra (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    compra_id INTEGER NOT NULL REFERENCES compras(id),
+    descricao TEXT NOT NULL,
+    valor REAL NOT NULL
 );
 
 CREATE TABLE IF NOT EXISTS parcelas (
@@ -81,6 +89,17 @@ CREATE TABLE IF NOT EXISTS contas_pagar (
     data TEXT NOT NULL
 );
 
+CREATE TABLE IF NOT EXISTS despesas_recorrentes (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    descricao TEXT NOT NULL,
+    categoria TEXT NOT NULL,
+    valor REAL NOT NULL,
+    frequencia TEXT NOT NULL,
+    data_inicio TEXT NOT NULL,
+    data_fim TEXT,
+    ativo INTEGER NOT NULL DEFAULT 1
+);
+
 CREATE TABLE IF NOT EXISTS pagamentos_saida (
     id INTEGER PRIMARY KEY AUTOINCREMENT,
     conta_pagar_id INTEGER NOT NULL REFERENCES contas_pagar(id),
@@ -108,8 +127,20 @@ def get_conn():
 def init_db():
     conn = get_conn()
     conn.executescript(SCHEMA)
+    _garantir_colunas_extra(conn)
     conn.commit()
     conn.close()
+
+
+def _garantir_colunas_extra(conn):
+    """`CREATE TABLE IF NOT EXISTS` não adiciona coluna em tabela que já existia antes
+    dela existir — isso cobre esse caso, sempre checando antes pra poder rodar toda
+    vez sem dar erro de coluna duplicada."""
+    colunas = {c["name"] for c in conn.execute("PRAGMA table_info(contas_pagar)").fetchall()}
+    if "vencimento" not in colunas:
+        conn.execute("ALTER TABLE contas_pagar ADD COLUMN vencimento TEXT")
+    if "despesa_recorrente_id" not in colunas:
+        conn.execute("ALTER TABLE contas_pagar ADD COLUMN despesa_recorrente_id INTEGER REFERENCES despesas_recorrentes(id)")
 
 
 def hoje():
@@ -274,19 +305,28 @@ def buscar_compra(conn, compra_id):
     return conn.execute("SELECT * FROM compras WHERE id = ?", (compra_id,)).fetchone()
 
 
-def criar_compra(conn, cliente_id, descricao, valor_total, datas_parcelas, entrada=0, valores_parcelas=None):
+def criar_compra(conn, cliente_id, descricao, valor_total, datas_parcelas, entrada=0, valores_parcelas=None, itens=None):
     """datas_parcelas: uma data (AAAA-MM-DD) por parcela, na ordem — cada uma já vem
     editada da tela se o Thiago mudou o padrão de 30 em 30 dias. Lista vazia = à vista,
     sem parcela fixa. `entrada`: valor já pago na hora da venda — vira um pagamento
     imediato, e as parcelas dividem só o que sobra (valor_total - entrada), não o
     valor_total inteiro. `valores_parcelas`: valor de cada parcela na mesma ordem das
     datas, editado na tela pra fechar número redondo (evita dízima tipo 33,33) — quem
-    não vier preenchido usa a divisão igual do que sobrar."""
+    não vier preenchido usa a divisão igual do que sobrar. `itens`: lista de
+    {"descricao", "valor"}, um por produto da venda — guardado à parte só pra mostrar
+    o carnê/detalhe com o preço de cada item numa lista, sem mexer no formato de
+    `descricao` (que continua sendo o texto juntado, usado em toda listagem/busca)."""
     cur = conn.execute(
         "INSERT INTO compras (cliente_id, descricao, valor_total, data) VALUES (?, ?, ?, ?)",
         (cliente_id, descricao.strip(), valor_total, hoje()),
     )
     compra_id = cur.lastrowid
+    if itens:
+        for item in itens:
+            conn.execute(
+                "INSERT INTO itens_compra (compra_id, descricao, valor) VALUES (?, ?, ?)",
+                (compra_id, item["descricao"], item["valor"]),
+            )
     entrada = entrada or 0
     if entrada > 0:
         conn.execute(
@@ -426,6 +466,23 @@ def parcelas_compra(conn, compra_id):
     return conn.execute(
         "SELECT * FROM parcelas WHERE compra_id = ? ORDER BY numero", (compra_id,)
     ).fetchall()
+
+
+def itens_compra_para_exibir(conn, compra):
+    """Lista de produtos com o valor de cada um, pro carnê/detalhe mostrar em coluna
+    em vez de um textão horizontal. Só devolve a lista se ela ainda bater com a
+    descrição atual da compra — se o Thiago editou o texto na mão depois de criar a
+    venda, os itens guardados ficariam desatualizados, então melhor cair pro texto
+    simples do que mostrar preço errado."""
+    itens = conn.execute(
+        "SELECT * FROM itens_compra WHERE compra_id = ? ORDER BY id", (compra["id"],)
+    ).fetchall()
+    if not itens:
+        return []
+    juncao = "; ".join(i["descricao"] for i in itens)
+    if juncao != (compra["descricao"] or ""):
+        return []
+    return itens
 
 
 def parcelas_com_status(conn, compra_id):
@@ -788,15 +845,18 @@ def buscar_fornecedor(conn, fornecedor_id):
     return conn.execute("SELECT * FROM fornecedores WHERE id = ?", (fornecedor_id,)).fetchone()
 
 
-# ---------- Contas a pagar (saídas: compra, despesa, outra_despesa) ----------
+# ---------- Contas a pagar (saídas: compra, despesa, outra_despesa, retirada) ----------
 # "Fornecedores" nas saídas não é uma categoria própria — é um cadastro que
 # qualquer conta (compra ou despesa) pode vincular opcionalmente. A categoria
-# de verdade é sempre compra/despesa/outra_despesa.
+# de verdade é sempre compra/despesa/outra_despesa/retirada.
 
-def criar_conta_pagar(conn, categoria, descricao, valor_total, data_conta, fornecedor_id=None):
+def criar_conta_pagar(conn, categoria, descricao, valor_total, data_conta, fornecedor_id=None, vencimento=None):
+    """`vencimento` é opcional (quando vem de uma despesa recorrente, ou quando o
+    Thiago já sabe a data futura de um boleto/parcela de fornecedor) — permite essa
+    conta aparecer projetada no "contas a pagar mensal" antes mesmo de ser paga."""
     cur = conn.execute(
-        "INSERT INTO contas_pagar (fornecedor_id, categoria, descricao, valor_total, data) VALUES (?, ?, ?, ?, ?)",
-        (fornecedor_id, categoria, descricao.strip(), valor_total, data_conta),
+        "INSERT INTO contas_pagar (fornecedor_id, categoria, descricao, valor_total, data, vencimento) VALUES (?, ?, ?, ?, ?, ?)",
+        (fornecedor_id, categoria, descricao.strip(), valor_total, data_conta, vencimento or None),
     )
     conn.commit()
     return cur.lastrowid
@@ -837,6 +897,127 @@ def registrar_pagamento_saida(conn, conta_id, valor, forma_pagamento, data_pagam
     )
     conn.commit()
     return cur.lastrowid
+
+
+def contas_a_pagar_mensais(conn):
+    """Visão mensal do que tem pra pagar, pelo VENCIMENTO de cada conta (não de quando
+    foi de fato paga) — mesma lógica do recebimentos_mensais, só que pro lado das
+    saídas. Só entra conta com vencimento marcado (as antigas sem essa informação
+    ficam de fora dessa visão, mas continuam normais em Contas a Pagar)."""
+    contas = conn.execute(
+        "SELECT * FROM contas_pagar WHERE vencimento IS NOT NULL AND vencimento != ''"
+    ).fetchall()
+    resultado = {}
+    for c in contas:
+        saldo, pago = saldo_conta_pagar(conn, c)
+        mes = c["vencimento"][:7]
+        resultado.setdefault(mes, {"previsto": 0.0, "pago": 0.0})
+        resultado[mes]["previsto"] += c["valor_total"]
+        resultado[mes]["pago"] += pago
+    lista = []
+    for mes, d in resultado.items():
+        previsto = round(d["previsto"], 2)
+        pago = round(d["pago"], 2)
+        lista.append({"mes": mes, "previsto": previsto, "pago": pago, "pendente": round(previsto - pago, 2)})
+    lista.sort(key=lambda x: x["mes"], reverse=True)
+    return lista
+
+
+# ---------- Despesas recorrentes (retirada do dono, mensalidade fixa, etc.) ----------
+# Servem de "molde": a cada acesso ao fluxo de caixa ou contas a pagar, o sistema
+# garante que as próximas ocorrências já estejam lançadas como conta a pagar (sem
+# duplicar) — não precisa de tarefa agendada, que o plano grátis do PythonAnywhere
+# não tem.
+
+def criar_despesa_recorrente(conn, descricao, categoria, valor, frequencia, data_inicio, data_fim=None):
+    cur = conn.execute(
+        """INSERT INTO despesas_recorrentes
+           (descricao, categoria, valor, frequencia, data_inicio, data_fim, ativo)
+           VALUES (?, ?, ?, ?, ?, ?, 1)""",
+        (descricao.strip(), categoria, valor, frequencia, data_inicio, data_fim or None),
+    )
+    conn.commit()
+    return cur.lastrowid
+
+
+def listar_despesas_recorrentes(conn):
+    return conn.execute(
+        "SELECT * FROM despesas_recorrentes ORDER BY ativo DESC, id DESC"
+    ).fetchall()
+
+
+def buscar_despesa_recorrente(conn, rec_id):
+    return conn.execute("SELECT * FROM despesas_recorrentes WHERE id = ?", (rec_id,)).fetchone()
+
+
+def editar_despesa_recorrente(conn, rec_id, novo_valor):
+    """Muda o valor da recorrência dali pra frente — as ocorrências futuras ainda não
+    pagas já atualizam sozinhas; o que já foi pago no passado continua registrado com
+    o valor de quando foi pago, sem reescrever histórico."""
+    conn.execute("UPDATE despesas_recorrentes SET valor = ? WHERE id = ?", (novo_valor, rec_id))
+    conn.execute(
+        """UPDATE contas_pagar SET valor_total = ?
+           WHERE despesa_recorrente_id = ? AND vencimento >= ?
+             AND id NOT IN (SELECT conta_pagar_id FROM pagamentos_saida)""",
+        (novo_valor, rec_id, hoje()),
+    )
+    conn.commit()
+
+
+def encerrar_despesa_recorrente(conn, rec_id):
+    """Para de gerar ocorrências novas dessa recorrência — e apaga as ocorrências
+    futuras que já tinham sido projetadas e ainda não foram pagas (não faz sentido
+    cobrar um mês que o Thiago já avisou que vai parar de pagar)."""
+    conn.execute("UPDATE despesas_recorrentes SET ativo = 0 WHERE id = ?", (rec_id,))
+    conn.execute(
+        """DELETE FROM contas_pagar WHERE despesa_recorrente_id = ? AND vencimento > ?
+             AND id NOT IN (SELECT conta_pagar_id FROM pagamentos_saida)""",
+        (rec_id, hoje()),
+    )
+    conn.commit()
+
+
+def _somar_meses(d, n):
+    mes = d.month - 1 + n
+    ano = d.year + mes // 12
+    mes = mes % 12 + 1
+    dia = min(d.day, calendar.monthrange(ano, mes)[1])
+    return date(ano, mes, dia)
+
+
+def gerar_ocorrencias_recorrentes(conn, horizonte_meses=3):
+    """Garante que toda despesa recorrente ativa já tenha as próximas ocorrências
+    lançadas como conta a pagar, até `horizonte_meses` à frente — sem duplicar (cada
+    ocorrência fica ligada ao id da recorrência + na mesma data de vencimento).
+    Chamado sempre que abre o fluxo de caixa ou contas a pagar."""
+    hoje_d = date.fromisoformat(hoje())
+    limite = _somar_meses(hoje_d, horizonte_meses)
+    for r in conn.execute("SELECT * FROM despesas_recorrentes WHERE ativo = 1").fetchall():
+        data_fim = date.fromisoformat(r["data_fim"]) if r["data_fim"] else None
+        d = date.fromisoformat(r["data_inicio"])
+        while d <= limite:
+            if data_fim and d > data_fim:
+                break
+            existe = conn.execute(
+                "SELECT 1 FROM contas_pagar WHERE despesa_recorrente_id = ? AND vencimento = ?",
+                (r["id"], d.isoformat()),
+            ).fetchone()
+            if not existe:
+                conn.execute(
+                    """INSERT INTO contas_pagar
+                       (fornecedor_id, categoria, descricao, valor_total, data, vencimento, despesa_recorrente_id)
+                       VALUES (NULL, ?, ?, ?, ?, ?, ?)""",
+                    (r["categoria"], r["descricao"], r["valor"], hoje(), d.isoformat(), r["id"]),
+                )
+            if r["frequencia"] == "semanal":
+                d = d + timedelta(days=7)
+            elif r["frequencia"] == "quinzenal":
+                d = d + timedelta(days=14)
+            elif r["frequencia"] == "semestral":
+                d = _somar_meses(d, 6)
+            else:  # mensal
+                d = _somar_meses(d, 1)
+    conn.commit()
 
 
 # ---------- Outras receitas (dinheiro que entrou fora do fluxo normal de venda) ----------
@@ -895,7 +1076,9 @@ def entradas_mensais(conn):
 
 def saidas_mensais(conn):
     """Dinheiro que realmente saiu do caixa, por mês e por categoria (compra/despesa/
-    outra_despesa) — soma dos pagamentos feitos em contas a pagar."""
+    outra_despesa/retirada) — soma dos pagamentos feitos em contas a pagar. Retirada
+    do dono fica separada das outras categorias — é lucro tirado, não custo de operar
+    a loja, então não deve se misturar na conta de "quanto a empresa gastou"."""
     linhas = conn.execute(
         """
         SELECT substr(ps.data, 1, 7) AS mes, cp.categoria AS categoria, SUM(ps.valor) AS total
@@ -906,7 +1089,7 @@ def saidas_mensais(conn):
     ).fetchall()
     resultado = {}
     for l in linhas:
-        resultado.setdefault(l["mes"], {"compra": 0.0, "despesa": 0.0, "outra_despesa": 0.0})
+        resultado.setdefault(l["mes"], {"compra": 0.0, "despesa": 0.0, "outra_despesa": 0.0, "retirada": 0.0})
         resultado[l["mes"]][l["categoria"]] = round(l["total"], 2)
     return resultado
 
@@ -924,9 +1107,9 @@ def fluxo_caixa_mensal(conn):
     lista = []
     for mes in meses:
         e = entradas.get(mes, {"recebimentos": 0.0, "outras_receitas": 0.0})
-        s = saidas.get(mes, {"compra": 0.0, "despesa": 0.0, "outra_despesa": 0.0})
+        s = saidas.get(mes, {"compra": 0.0, "despesa": 0.0, "outra_despesa": 0.0, "retirada": 0.0})
         total_entradas = round(e["recebimentos"] + e["outras_receitas"], 2)
-        total_saidas = round(s["compra"] + s["despesa"] + s["outra_despesa"], 2)
+        total_saidas = round(s["compra"] + s["despesa"] + s["outra_despesa"] + s["retirada"], 2)
         lista.append({
             "mes": mes,
             "vendas": round(vendas.get(mes, 0.0), 2),
@@ -936,6 +1119,7 @@ def fluxo_caixa_mensal(conn):
             "compras": s["compra"],
             "despesas": s["despesa"],
             "outras_despesas": s["outra_despesa"],
+            "retiradas": s["retirada"],
             "total_saidas": total_saidas,
             "resultado": round(total_entradas - total_saidas, 2),
         })

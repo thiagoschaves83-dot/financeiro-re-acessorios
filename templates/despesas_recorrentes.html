@@ -1,0 +1,73 @@
+{% extends "base.html" %}
+{% block titulo %}Despesas recorrentes — Financeiro{% endblock %}
+{% block conteudo %}
+<p><a href="{{ url_for('contas_pagar') }}">← Contas a pagar</a></p>
+<h2>Despesas recorrentes</h2>
+<p style="color:#777; font-size:0.9rem;">
+  Custos fixos que se repetem (retirada do dono, mensalidade fixa, etc.) — cadastra uma vez e o sistema
+  já lança sozinho as próximas ocorrências em Contas a Pagar e no fluxo de caixa, sem precisar lançar todo mês na mão.
+</p>
+
+<div class="card">
+  <form method="post" action="{{ url_for('nova_despesa_recorrente') }}">
+    <label>Categoria</label>
+    <select name="categoria" required style="width:200px">
+      <option value="retirada">Retirada do dono</option>
+      <option value="despesa">Despesa</option>
+      <option value="outra_despesa">Outra despesa</option>
+      <option value="compra">Compra</option>
+    </select>
+
+    <label>Descrição</label>
+    <input type="text" name="descricao" required placeholder="ex.: Retirada mensal do dono" style="width:300px">
+
+    <label>Valor (R$)</label>
+    <input type="text" name="valor" required placeholder="2500,00" style="width:120px">
+
+    <label>Frequência</label>
+    <select name="frequencia" required style="width:160px">
+      <option value="mensal">Mensal</option>
+      <option value="quinzenal">Quinzenal</option>
+      <option value="semanal">Semanal</option>
+      <option value="semestral">Semestral</option>
+    </select>
+
+    <label>Começa em</label>
+    <input type="date" name="data_inicio" required>
+
+    <div style="margin-top:14px;">
+      <button class="btn" type="submit">+ Cadastrar recorrência</button>
+    </div>
+  </form>
+</div>
+
+<table>
+  <tr><th>Descrição</th><th>Categoria</th><th>Valor</th><th>Frequência</th><th>Começa em</th><th>Status</th><th>Ações</th></tr>
+  {% for r in recorrentes %}
+  <tr>
+    <td>{{ r.descricao }}</td>
+    <td>{{ {"compra": "Compra", "despesa": "Despesa", "outra_despesa": "Outra despesa", "retirada": "Retirada do dono"}[r.categoria] }}</td>
+    <td>R$ {{ r.valor | moeda_br }}</td>
+    <td>{{ {"semanal": "Semanal", "quinzenal": "Quinzenal", "mensal": "Mensal", "semestral": "Semestral"}[r.frequencia] }}</td>
+    <td>{{ r.data_inicio | data_br }}</td>
+    <td>{{ "Ativa" if r.ativo else "Encerrada" }}</td>
+    <td>
+      {% if r.ativo %}
+      <form method="post" action="{{ url_for('editar_despesa_recorrente', rec_id=r.id) }}" style="display:inline-flex; gap:4px; align-items:center;">
+        <input type="text" name="valor" value="{{ '%.2f'|format(r.valor) }}" style="width:80px; font-size:0.85rem;">
+        <button class="btn btn-secundario" type="submit" style="font-size:0.8rem; padding:4px 8px;">Atualizar valor</button>
+      </form>
+      <form method="post" action="{{ url_for('encerrar_despesa_recorrente', rec_id=r.id) }}" style="display:inline;"
+            onsubmit="return confirm('Encerrar essa recorrência? Ocorrências futuras ainda não pagas serão removidas.');">
+        <button class="btn" type="submit" style="background:var(--carmim-escuro); font-size:0.8rem; padding:4px 8px;">Encerrar</button>
+      </form>
+      {% else %}
+      —
+      {% endif %}
+    </td>
+  </tr>
+  {% else %}
+  <tr><td colspan="7">Nenhuma despesa recorrente cadastrada ainda.</td></tr>
+  {% endfor %}
+</table>
+{% endblock %}

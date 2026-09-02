@@ -8,6 +8,23 @@
   de conta já entra aqui sozinho, sem precisar lançar de novo.
 </p>
 
+{% if caixa %}
+<div class="card">
+  <h3 style="margin-top:0;">💰 Caixa agora</h3>
+  <p style="font-size:1.3rem; margin:0;">
+    <strong class="{{ 'saldo-zero' if caixa.saldo_atual >= 0 else 'atraso' }}">R$ {{ caixa.saldo_atual | moeda_br }}</strong>
+  </p>
+  <p style="font-size:0.85rem; color:#888; margin-top:6px;">
+    Hoje: R$ {{ caixa.total_entradas_hoje | moeda_br }} de entrada, R$ {{ caixa.total_saidas_hoje | moeda_br }} de saída.
+    <a href="{{ url_for('caixa') }}">Ver detalhe / recalibrar →</a>
+  </p>
+</div>
+{% else %}
+<div class="card">
+  <p>Você ainda não calibrou o saldo de caixa. <a href="{{ url_for('caixa') }}">Calibrar agora →</a></p>
+</div>
+{% endif %}
+
 <div class="card" style="display:flex; gap:24px; flex-wrap:wrap;">
   <a class="btn btn-secundario" href="{{ url_for('contas_pagar') }}">💸 Contas a pagar</a>
   <a class="btn btn-secundario" href="{{ url_for('outras_receitas') }}">➕ Outras receitas</a>

@@ -803,8 +803,31 @@ def fluxo_caixa():
     conn = db.get_conn()
     db.gerar_ocorrencias_recorrentes(conn)
     meses = db.fluxo_caixa_mensal(conn)
+    caixa = db.caixa_status(conn)
     conn.close()
-    return render_template("fluxo_caixa.html", meses=meses)
+    return render_template("fluxo_caixa.html", meses=meses, caixa=caixa)
+
+
+@app.route("/caixa", methods=["GET", "POST"])
+def caixa():
+    conn = db.get_conn()
+    if request.method == "POST":
+        saldo_raw = request.form.get("saldo_inicial", "0").replace(",", ".")
+        data_inicial = request.form.get("data_inicial") or db.hoje()
+        try:
+            saldo = float(saldo_raw)
+        except ValueError:
+            conn.close()
+            flash("Valor inválido.", "erro")
+            return redirect(url_for("caixa"))
+        db.definir_caixa_inicial(conn, saldo, data_inicial)
+        conn.close()
+        flash("Caixa calibrado — o saldo do dia já recalcula sozinho a partir daqui.", "ok")
+        return redirect(url_for("caixa"))
+    config = db.obter_caixa_config(conn)
+    status = db.caixa_status(conn)
+    conn.close()
+    return render_template("caixa.html", config=config, status=status)
 
 
 @app.route("/recebimentos-mensais")

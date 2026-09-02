@@ -100,6 +100,12 @@ CREATE TABLE IF NOT EXISTS despesas_recorrentes (
     ativo INTEGER NOT NULL DEFAULT 1
 );
 
+CREATE TABLE IF NOT EXISTS caixa_config (
+    id INTEGER PRIMARY KEY CHECK (id = 1),
+    saldo_inicial REAL NOT NULL,
+    data_inicial TEXT NOT NULL
+);
+
 CREATE TABLE IF NOT EXISTS pagamentos_saida (
     id INTEGER PRIMARY KEY AUTOINCREMENT,
     conta_pagar_id INTEGER NOT NULL REFERENCES contas_pagar(id),
@@ -1125,6 +1131,87 @@ def fluxo_caixa_mensal(conn):
         })
     lista.sort(key=lambda x: x["mes"], reverse=True)
     return lista
+
+
+# ---------- Caixa (saldo do dia a dia) ----------
+# Calibra uma vez ("hoje tinha R$X em caixa") e o sistema soma/subtrai sozinho a partir
+# daí, usando as mesmas tabelas de sempre (pagamentos, pagamentos_saida, outras
+# receitas) — sem lançar nada duas vezes.
+
+def definir_caixa_inicial(conn, saldo, data):
+    conn.execute(
+        """INSERT INTO caixa_config (id, saldo_inicial, data_inicial) VALUES (1, ?, ?)
+           ON CONFLICT(id) DO UPDATE SET saldo_inicial = excluded.saldo_inicial, data_inicial = excluded.data_inicial""",
+        (saldo, data),
+    )
+    conn.commit()
+
+
+def obter_caixa_config(conn):
+    return conn.execute("SELECT * FROM caixa_config WHERE id = 1").fetchone()
+
+
+def caixa_status(conn):
+    """Saldo de abertura de hoje, os movimentos de hoje (entradas e saídas, cada um
+    com descrição) e o saldo atual — calculado a partir do saldo calibrado em
+    definir_caixa_inicial. Retorna None se ainda não foi calibrado."""
+    config = obter_caixa_config(conn)
+    if not config:
+        return None
+    data_inicial = config["data_inicial"]
+    hoje_str = hoje()
+
+    def soma(tabela, coluna_data=None):
+        col = coluna_data or "data"
+        return conn.execute(
+            f"SELECT COALESCE(SUM(valor), 0) AS t FROM {tabela} WHERE {col} > ? AND {col} < ?",
+            (data_inicial, hoje_str),
+        ).fetchone()["t"]
+
+    entradas_antes = soma("pagamentos") + soma("outras_receitas")
+    saidas_antes = soma("pagamentos_saida")
+    saldo_abertura = round(config["saldo_inicial"] + entradas_antes - saidas_antes, 2)
+
+    entradas_hoje = []
+    for p in conn.execute(
+        """SELECT p.id, p.valor, p.forma_pagamento, c.descricao, cl.nome AS cliente_nome
+           FROM pagamentos p JOIN compras c ON c.id = p.compra_id JOIN clientes cl ON cl.id = c.cliente_id
+           WHERE p.data = ? ORDER BY p.id""",
+        (hoje_str,),
+    ).fetchall():
+        rotulo = "Entrada" if (p["forma_pagamento"] or "") == "Entrada" else "Recebimento"
+        entradas_hoje.append({
+            "descricao": f"{rotulo} de {p['cliente_nome']} — {p['descricao']}",
+            "valor": p["valor"],
+        })
+    for r in conn.execute(
+        "SELECT id, descricao, valor FROM outras_receitas WHERE data = ? ORDER BY id", (hoje_str,)
+    ).fetchall():
+        entradas_hoje.append({"descricao": r["descricao"], "valor": r["valor"]})
+
+    saidas_hoje = []
+    for s in conn.execute(
+        """SELECT ps.id, ps.valor, cp.descricao
+           FROM pagamentos_saida ps JOIN contas_pagar cp ON cp.id = ps.conta_pagar_id
+           WHERE ps.data = ? ORDER BY ps.id""",
+        (hoje_str,),
+    ).fetchall():
+        saidas_hoje.append({"descricao": s["descricao"], "valor": s["valor"]})
+
+    total_entradas_hoje = round(sum(m["valor"] for m in entradas_hoje), 2)
+    total_saidas_hoje = round(sum(m["valor"] for m in saidas_hoje), 2)
+    saldo_atual = round(saldo_abertura + total_entradas_hoje - total_saidas_hoje, 2)
+
+    return {
+        "data_calibragem": data_inicial,
+        "saldo_calibrado": config["saldo_inicial"],
+        "saldo_abertura": saldo_abertura,
+        "entradas_hoje": entradas_hoje,
+        "saidas_hoje": saidas_hoje,
+        "total_entradas_hoje": total_entradas_hoje,
+        "total_saidas_hoje": total_saidas_hoje,
+        "saldo_atual": saldo_atual,
+    }
 
 
 # ---------- Dashboard ----------

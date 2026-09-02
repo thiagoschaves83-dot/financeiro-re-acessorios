@@ -1,0 +1,59 @@
+{% extends "base.html" %}
+{% block titulo %}Caixa — Financeiro{% endblock %}
+{% block conteudo %}
+<p><a href="{{ url_for('fluxo_caixa') }}">← Fluxo de caixa</a></p>
+<h2>Caixa</h2>
+<p style="color:#777; font-size:0.9rem;">
+  Saldo do dia a dia — calibra uma vez quanto tem em caixa numa data, e o sistema soma as entradas
+  e subtrai as saídas sozinho a partir dali, usando os mesmos lançamentos de sempre.
+</p>
+
+<div class="card">
+  <h3 style="margin-top:0;">{{ "Recalibrar" if config else "Calibrar" }} saldo inicial</h3>
+  <form method="post" action="{{ url_for('caixa') }}">
+    <label>Quanto tinha em caixa</label>
+    <input type="text" name="saldo_inicial" required placeholder="5036,74" style="width:140px"
+           value="{{ '%.2f'|format(config.saldo_inicial) if config else '' }}">
+    <label>Nessa data</label>
+    <input type="date" name="data_inicial" required value="{{ config.data_inicial if config else '' }}">
+    <div style="margin-top:14px;">
+      <button class="btn" type="submit">Salvar</button>
+    </div>
+  </form>
+  {% if config %}
+  <p style="font-size:0.82rem; color:#888; margin-top:10px;">
+    Calibrado em R$ {{ config.saldo_inicial | moeda_br }} no dia {{ config.data_inicial | data_br }}.
+    Se recalibrar, o saldo recalcula tudo a partir da nova data.
+  </p>
+  {% endif %}
+</div>
+
+{% if status %}
+<div class="card">
+  <h3 style="margin-top:0;">Hoje</h3>
+  <p>Saldo de abertura hoje: <strong>R$ {{ status.saldo_abertura | moeda_br }}</strong></p>
+
+  <p style="margin-bottom:4px;"><strong>Entradas de hoje</strong> (total: R$ {{ status.total_entradas_hoje | moeda_br }})</p>
+  <table>
+    <tr><th>Descrição</th><th>Valor</th></tr>
+    {% for m in status.entradas_hoje %}
+    <tr><td>{{ m.descricao }}</td><td>R$ {{ m.valor | moeda_br }}</td></tr>
+    {% else %}
+    <tr><td colspan="2">Nenhuma entrada hoje ainda.</td></tr>
+    {% endfor %}
+  </table>
+
+  <p style="margin:16px 0 4px;"><strong>Saídas de hoje</strong> (total: R$ {{ status.total_saidas_hoje | moeda_br }})</p>
+  <table>
+    <tr><th>Descrição</th><th>Valor</th></tr>
+    {% for m in status.saidas_hoje %}
+    <tr><td>{{ m.descricao }}</td><td>R$ {{ m.valor | moeda_br }}</td></tr>
+    {% else %}
+    <tr><td colspan="2">Nenhuma saída hoje ainda.</td></tr>
+    {% endfor %}
+  </table>
+
+  <p style="margin-top:16px; font-size:1.1rem;">Saldo atual: <strong class="{{ 'saldo-zero' if status.saldo_atual >= 0 else 'atraso' }}">R$ {{ status.saldo_atual | moeda_br }}</strong></p>
+</div>
+{% endif %}
+{% endblock %}

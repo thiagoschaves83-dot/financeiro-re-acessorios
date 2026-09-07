@@ -133,7 +133,11 @@
       box-sizing: border-box;
     }
     .card { padding: 14px; }
-    .campo-autocomplete { display: block; width: 100%; }
+    /* Precisa de !important: o próprio elemento tem style="width:400px" inline
+       no HTML, e um input filho com width:100% calcula 100% DESTE pai — se o
+       pai continuar em 400px (por perder pro inline dele), o filho também fica
+       preso em 400px mesmo com !important, porque 100% de 400px ainda é 400px. */
+    .campo-autocomplete { display: block !important; width: 100% !important; }
 
     /* Linha de parcela (label + data + R$ + valor) é um flex row sem quebra —
        em tela de celular ela estourava pra fora porque os inputs também levam

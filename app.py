@@ -830,6 +830,24 @@ def caixa():
     return render_template("caixa.html", config=config, status=status)
 
 
+@app.route("/baixas-do-dia")
+def baixas_do_dia():
+    data_str = request.args.get("data") or db.hoje()
+    conn = db.get_conn()
+    entradas, saidas = db.movimentos_do_dia(conn, data_str)
+    conn.close()
+    total_entradas = round(sum(m["valor"] for m in entradas), 2)
+    total_saidas = round(sum(m["valor"] for m in saidas), 2)
+    return render_template(
+        "baixas_do_dia.html",
+        data_str=data_str,
+        entradas=entradas,
+        saidas=saidas,
+        total_entradas=total_entradas,
+        total_saidas=total_saidas,
+    )
+
+
 @app.route("/recebimentos-mensais")
 def recebimentos_mensais_view():
     conn = db.get_conn()

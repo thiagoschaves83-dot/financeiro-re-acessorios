@@ -1,0 +1,43 @@
+{% extends "base.html" %}
+{% block titulo %}Baixas do dia — Financeiro{% endblock %}
+{% block conteudo %}
+<p><a href="{{ url_for('fluxo_caixa') }}">← Fluxo de caixa</a></p>
+<h2>Baixas do dia</h2>
+<p style="color:#777; font-size:0.9rem;">
+  Tudo que foi dado baixa (recebimento de cliente, outras receitas e pagamento de conta) num dia específico.
+</p>
+
+<div class="card">
+  <form method="get" action="{{ url_for('baixas_do_dia') }}" style="display:flex; gap:12px; align-items:end; flex-wrap:wrap;">
+    <div>
+      <label>Data</label><br>
+      <input type="date" name="data" value="{{ data_str }}">
+    </div>
+    <button class="btn" type="submit">Ver</button>
+  </form>
+</div>
+
+<div class="card">
+  <h3 style="margin-top:0;">{{ data_str | data_br }}</h3>
+
+  <p style="margin-bottom:4px;"><strong>Entradas</strong> (total: R$ {{ total_entradas | moeda_br }})</p>
+  <table>
+    <tr><th>Descrição</th><th>Forma</th><th>Valor</th></tr>
+    {% for m in entradas %}
+    <tr><td>{{ m.descricao }}</td><td>{{ m.forma_pagamento or '-' }}</td><td>R$ {{ m.valor | moeda_br }}</td></tr>
+    {% else %}
+    <tr><td colspan="3">Nenhuma entrada nesse dia.</td></tr>
+    {% endfor %}
+  </table>
+
+  <p style="margin:16px 0 4px;"><strong>Saídas</strong> (total: R$ {{ total_saidas | moeda_br }})</p>
+  <table>
+    <tr><th>Descrição</th><th>Valor</th></tr>
+    {% for m in saidas %}
+    <tr><td>{{ m.descricao }}</td><td>R$ {{ m.valor | moeda_br }}</td></tr>
+    {% else %}
+    <tr><td colspan="2">Nenhuma saída nesse dia.</td></tr>
+    {% endfor %}
+  </table>
+</div>
+{% endblock %}

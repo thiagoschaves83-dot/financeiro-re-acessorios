@@ -1151,6 +1151,39 @@ def obter_caixa_config(conn):
     return conn.execute("SELECT * FROM caixa_config WHERE id = 1").fetchone()
 
 
+def movimentos_do_dia(conn, data_str):
+    """Entradas e saídas (baixas) de uma data específica, cada uma com descrição.
+    Usado tanto pelo caixa (hoje) quanto pela tela de baixas por dia (qualquer data)."""
+    entradas = []
+    for p in conn.execute(
+        """SELECT p.id, p.valor, p.forma_pagamento, c.descricao, cl.nome AS cliente_nome
+           FROM pagamentos p JOIN compras c ON c.id = p.compra_id JOIN clientes cl ON cl.id = c.cliente_id
+           WHERE p.data = ? ORDER BY p.id""",
+        (data_str,),
+    ).fetchall():
+        rotulo = "Entrada" if (p["forma_pagamento"] or "") == "Entrada" else "Recebimento"
+        entradas.append({
+            "descricao": f"{rotulo} de {p['cliente_nome']} — {p['descricao']}",
+            "valor": p["valor"],
+            "forma_pagamento": p["forma_pagamento"],
+        })
+    for r in conn.execute(
+        "SELECT id, descricao, valor FROM outras_receitas WHERE data = ? ORDER BY id", (data_str,)
+    ).fetchall():
+        entradas.append({"descricao": r["descricao"], "valor": r["valor"], "forma_pagamento": None})
+
+    saidas = []
+    for s in conn.execute(
+        """SELECT ps.id, ps.valor, cp.descricao
+           FROM pagamentos_saida ps JOIN contas_pagar cp ON cp.id = ps.conta_pagar_id
+           WHERE ps.data = ? ORDER BY ps.id""",
+        (data_str,),
+    ).fetchall():
+        saidas.append({"descricao": s["descricao"], "valor": s["valor"]})
+
+    return entradas, saidas
+
+
 def caixa_status(conn):
     """Saldo de abertura de hoje, os movimentos de hoje (entradas e saídas, cada um
     com descrição) e o saldo atual — calculado a partir do saldo calibrado em
@@ -1172,31 +1205,7 @@ def caixa_status(conn):
     saidas_antes = soma("pagamentos_saida")
     saldo_abertura = round(config["saldo_inicial"] + entradas_antes - saidas_antes, 2)
 
-    entradas_hoje = []
-    for p in conn.execute(
-        """SELECT p.id, p.valor, p.forma_pagamento, c.descricao, cl.nome AS cliente_nome
-           FROM pagamentos p JOIN compras c ON c.id = p.compra_id JOIN clientes cl ON cl.id = c.cliente_id
-           WHERE p.data = ? ORDER BY p.id""",
-        (hoje_str,),
-    ).fetchall():
-        rotulo = "Entrada" if (p["forma_pagamento"] or "") == "Entrada" else "Recebimento"
-        entradas_hoje.append({
-            "descricao": f"{rotulo} de {p['cliente_nome']} — {p['descricao']}",
-            "valor": p["valor"],
-        })
-    for r in conn.execute(
-        "SELECT id, descricao, valor FROM outras_receitas WHERE data = ? ORDER BY id", (hoje_str,)
-    ).fetchall():
-        entradas_hoje.append({"descricao": r["descricao"], "valor": r["valor"]})
-
-    saidas_hoje = []
-    for s in conn.execute(
-        """SELECT ps.id, ps.valor, cp.descricao
-           FROM pagamentos_saida ps JOIN contas_pagar cp ON cp.id = ps.conta_pagar_id
-           WHERE ps.data = ? ORDER BY ps.id""",
-        (hoje_str,),
-    ).fetchall():
-        saidas_hoje.append({"descricao": s["descricao"], "valor": s["valor"]})
+    entradas_hoje, saidas_hoje = movimentos_do_dia(conn, hoje_str)
 
     total_entradas_hoje = round(sum(m["valor"] for m in entradas_hoje), 2)
     total_saidas_hoje = round(sum(m["valor"] for m in saidas_hoje), 2)

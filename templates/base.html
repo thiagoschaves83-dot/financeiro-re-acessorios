@@ -134,6 +134,27 @@
     }
     .card { padding: 14px; }
     .campo-autocomplete { display: block; width: 100%; }
+
+    /* Linha de parcela (label + data + R$ + valor) é um flex row sem quebra —
+       em tela de celular ela estourava pra fora porque os inputs também levam
+       width:100% da regra acima. Aqui ela quebra em duas linhas: label sozinho
+       em cima, data + valor lado a lado embaixo, cada um com largura própria. */
+    .linha-parcela {
+      flex-wrap: wrap !important;
+      width: 100%;
+    }
+    .linha-parcela label {
+      min-width: 100% !important;
+      margin-bottom: 2px;
+    }
+    .linha-parcela input[type="date"] {
+      width: auto !important;
+      flex: 1 1 140px;
+    }
+    .linha-parcela .valor-parcela-input {
+      width: auto !important;
+      flex: 1 1 70px;
+    }
   }
 </style>
 </head>

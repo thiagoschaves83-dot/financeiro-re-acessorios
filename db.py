@@ -458,6 +458,7 @@ def excluir_compra(conn, compra_id):
     conn.execute("DELETE FROM pagamentos WHERE compra_id = ?", (compra_id,))
     conn.execute("DELETE FROM parcelas WHERE compra_id = ?", (compra_id,))
     conn.execute("DELETE FROM historico_edicoes WHERE compra_id = ?", (compra_id,))
+    conn.execute("DELETE FROM itens_compra WHERE compra_id = ?", (compra_id,))
     conn.execute("DELETE FROM compras WHERE id = ?", (compra_id,))
     conn.commit()
 

@@ -906,6 +906,18 @@ def registrar_pagamento_saida(conn, conta_id, valor, forma_pagamento, data_pagam
     return cur.lastrowid
 
 
+def buscar_pagamento_saida(conn, pagamento_id):
+    return conn.execute("SELECT * FROM pagamentos_saida WHERE id = ?", (pagamento_id,)).fetchone()
+
+
+def excluir_pagamento_saida(conn, pagamento_id):
+    """Estorna uma baixa lançada errado na conta a pagar (ex.: baixa na conta errada).
+    O saldo da conta e o fluxo de caixa voltam sozinhos, porque os dois são sempre
+    calculados a partir dos pagamentos, nunca guardados fixos."""
+    conn.execute("DELETE FROM pagamentos_saida WHERE id = ?", (pagamento_id,))
+    conn.commit()
+
+
 def contas_a_pagar_mensais(conn):
     """Visão mensal do que tem pra pagar, pelo VENCIMENTO de cada conta (não de quando
     foi de fato paga) — mesma lógica do recebimentos_mensais, só que pro lado das

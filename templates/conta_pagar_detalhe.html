@@ -36,15 +36,22 @@
 
 <h3>Pagamentos</h3>
 <table>
-  <tr><th>Data</th><th>Valor</th><th>Forma</th></tr>
+  <tr><th>Data</th><th>Valor</th><th>Forma</th><th></th></tr>
   {% for p in pagamentos %}
   <tr>
     <td>{{ p.data | data_br }}</td>
     <td>R$ {{ p.valor | moeda_br }}</td>
     <td>{{ p.forma_pagamento or "—" }}</td>
+    <td>
+      <form method="post" action="{{ url_for('excluir_pagamento_saida', pagamento_id=p.id) }}"
+            onsubmit="return confirm('Cancelar esta baixa de R$ {{ p.valor | moeda_br }}? O saldo da conta volta a ficar em aberto.');"
+            style="display:inline;">
+        <button type="submit" class="btn btn-secundario" style="font-size:0.8rem; padding:5px 10px;">↩️ Cancelar baixa</button>
+      </form>
+    </td>
   </tr>
   {% else %}
-  <tr><td colspan="3">Nenhum pagamento registrado ainda.</td></tr>
+  <tr><td colspan="4">Nenhum pagamento registrado ainda.</td></tr>
   {% endfor %}
 </table>
 {% endblock %}

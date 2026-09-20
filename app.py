@@ -766,6 +766,21 @@ def novo_pagamento_saida(conta_id):
     return redirect(url_for("conta_pagar_detalhe", conta_id=conta_id))
 
 
+@app.route("/pagamentos-saida/<int:pagamento_id>/excluir", methods=["POST"])
+def excluir_pagamento_saida(pagamento_id):
+    conn = db.get_conn()
+    pagamento = db.buscar_pagamento_saida(conn, pagamento_id)
+    if not pagamento:
+        conn.close()
+        flash("Pagamento não encontrado.", "erro")
+        return redirect(url_for("contas_pagar"))
+    conta_id = pagamento["conta_pagar_id"]
+    db.excluir_pagamento_saida(conn, pagamento_id)
+    conn.close()
+    flash("Baixa cancelada — o saldo da conta e o fluxo de caixa já voltaram.", "ok")
+    return redirect(url_for("conta_pagar_detalhe", conta_id=conta_id))
+
+
 # ---------- Outras receitas ----------
 
 @app.route("/outras-receitas")

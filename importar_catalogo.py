@@ -16,7 +16,7 @@ from datetime import date
 
 import db
 
-CATALOGO_PATH = Path(__file__).parent.parent / "CATALOGO.csv"
+CATALOGO_PATH = Path(__file__).parent.parent / "Catalogo-Produtos" / "CATALOGO.csv"
 
 
 def _preco(valor: str):
@@ -33,6 +33,10 @@ def processar_conteudo(texto_csv: str) -> dict:
     """Recebe o texto do CSV (de onde vier — arquivo local ou upload) e importa."""
     conn = db.get_conn()
     total = 0
+    # O CSV sai do Excel com BOM. Se ele sobrar, a primeira coluna vira "﻿CODIGO"
+    # e NENHUMA linha importa — some tudo em silêncio, sem erro. Tira aqui pra valer
+    # pros dois caminhos (upload pela tela e envio pelo deploy).
+    texto_csv = texto_csv.lstrip("﻿")
     leitor = csv.DictReader(io.StringIO(texto_csv), delimiter=";", quotechar='"')
     hoje = date.today().isoformat()
     for linha in leitor:

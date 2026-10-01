@@ -1,5 +1,6 @@
 """App financeiro da Rê Acessórios — Flask, uso pessoal do Thiago."""
 import csv
+import hmac
 import io
 import os
 
@@ -48,7 +49,9 @@ def data_br(valor):
 
 @app.before_request
 def exigir_login():
-    rotas_livres = {"login", "definir_senha", "static"}
+    # sincronizar_catalogo não usa sessão: é o deploy do site chamando de fora,
+    # autenticado pelo próprio token (ver a rota).
+    rotas_livres = {"login", "definir_senha", "static", "sincronizar_catalogo"}
     if request.endpoint in rotas_livres:
         return
     if not auth.senha_definida():
@@ -495,6 +498,25 @@ def importar_produtos_upload():
     resultado = importar_catalogo.processar_conteudo(texto)
     flash(f"{resultado['total']} produtos importados/atualizados do arquivo enviado.", "ok")
     return redirect(url_for("produtos"))
+
+
+@app.route("/produtos/sincronizar", methods=["POST"])
+def sincronizar_catalogo():
+    """Recebe o CATALOGO.csv direto do deploy.ps1, pra todo produto publicado no site
+    já nascer no financeiro sem ninguém lembrar de nada.
+
+    Não usa a sessão do navegador (quem chama é um script, não o Thiago logado), então
+    a porta é o token. Sem token configurado no servidor a rota recusa tudo — se faltar
+    a variável de ambiente, o certo é ficar fechada, nunca aberta."""
+    esperado = os.environ.get("CATALOGO_SYNC_TOKEN", "")
+    enviado = request.headers.get("X-Catalogo-Token", "")
+    if not esperado or not hmac.compare_digest(esperado, enviado):
+        return {"ok": False, "erro": "nao autorizado"}, 401
+    texto = request.get_data(as_text=True)
+    if not texto.strip():
+        return {"ok": False, "erro": "corpo vazio"}, 400
+    resultado = importar_catalogo.processar_conteudo(texto)
+    return resultado
 
 
 @app.route("/produtos/rapido", methods=["POST"])

@@ -478,7 +478,10 @@ def produtos():
 def importar_produtos():
     resultado = importar_catalogo.importar()
     if resultado["ok"]:
-        flash(f"{resultado['total']} produtos importados/atualizados do CATALOGO.csv.", "ok")
+        msg = f"{resultado['total']} produtos importados/atualizados do CATALOGO.csv."
+        if resultado.get("removidos"):
+            msg += f" {len(resultado['removidos'])} removidos por não estarem mais no catálogo."
+        flash(msg, "ok")
     else:
         flash(f"Não consegui importar: {resultado['erro']}", "erro")
     return redirect(url_for("produtos"))
@@ -515,7 +518,7 @@ def sincronizar_catalogo():
     texto = request.get_data(as_text=True)
     if not texto.strip():
         return {"ok": False, "erro": "corpo vazio"}, 400
-    resultado = importar_catalogo.processar_conteudo(texto)
+    resultado = importar_catalogo.processar_conteudo(texto, espelhar=True)
     return resultado
 
 
